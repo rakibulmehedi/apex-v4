@@ -257,4 +257,53 @@ MarketSnapshot H1 candles → FeatureVector.
   - [x] Return validated FeatureVector
 - [x] Write unit tests — 26 tests with known input/output pairs
 - [x] Run all tests — 143/143 pass
-- [ ] Commit: `feat: feature fabric`
+- [x] Commit: `feat: feature fabric` → `0ccb9e2`
+
+### Review — 2026-03-21
+
+**Status: COMPLETE** — 26 tests, 143/143 total pass.
+
+### Indicators (all TA-Lib, no custom numpy)
+| Indicator | TA-Lib Call | Verified With |
+|---|---|---|
+| `atr_14` | `talib.ATR(high, low, close, timeperiod=14)` | Linear ramp → 0.002, Sine → 0.0016 |
+| `adx_14` | `talib.ADX(high, low, close, timeperiod=14)` | Linear → 100.0, Sine → 41.82 |
+| `ema_200` | `talib.EMA(close, timeperiod=200)` | Linear → 1.10995, Sine → 1.10 |
+| `bb_upper` | `talib.BBANDS(close, 20, 2, 2)[0]` | Linear → 1.12010 |
+| `bb_mid` | `talib.BBANDS(close, 20, 2, 2)[1]` | Linear → 1.11895 |
+| `bb_lower` | `talib.BBANDS(close, 20, 2, 2)[2]` | Linear → 1.11780 |
+
+### Design Decisions
+- FeatureFabric takes `spread_max_points` as constructor arg, not reading YAML itself
+- Redis client injected via constructor — `None` disables news_blackout (always False)
+- Redis errors caught and defaulted to False — never crash on Redis failure
+- Added `spread.max_points: 0.00030` (3 pips) to settings.yaml
+- Fixed pre-existing flaky `test_boundary_5000ms_not_stale` (race between clock reads)
+
+---
+
+## Session: 2026-03-21 — Redis + PostgreSQL State Manager (P1.5)
+
+### Goal
+Implement `src/features/state.py` — RedisStateManager for TTL-cached state
+and PostgresWriter for async durable writes.
+
+### Checklist
+- [x] Implement `RedisStateManager` class
+  - [x] `store_feature_vector(fv)` → key `fv:{pair}`, TTL 300s
+  - [x] `get_feature_vector(pair)` → FeatureVector | None
+  - [x] `store_open_positions(positions)` → key `open_positions`, TTL 60s
+  - [x] `get_open_positions()` → list
+  - [x] `set_kill_switch(level)` → key `kill_switch`, no TTL
+  - [x] `get_kill_switch()` → str | None
+  - [x] `set_news_blackout(pair, active, duration_minutes)`
+- [x] Implement `PostgresWriter` class
+  - [x] `write_feature_vector(fv)` → insert into feature_vectors
+  - [x] `write_trade_outcome(outcome)` → insert into trade_outcomes
+  - [x] `write_kill_switch_event(level, reason)` → insert into kill_switch_events
+  - [x] All writes async via asyncio.to_thread
+  - [x] On error: log critical, do NOT crash
+- [x] All connection details from environment variables
+- [x] Write unit tests — 29 tests (Redis + SQLAlchemy fully mocked)
+- [x] Run all tests — 172/172 pass
+- [ ] Commit: `feat: redis state manager + postgres writer`
