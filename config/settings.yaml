@@ -1,0 +1,68 @@
+# APEX V4 — Runtime Configuration
+# Secrets (API keys, passwords) go in config/secrets.env — never here
+
+system:
+  mode: paper                    # paper | live
+  log_level: INFO
+
+mt5:
+  pairs:
+    - EURUSD
+    - GBPUSD
+    - USDJPY
+    - AUDUSD
+  timeframes:
+    - M5
+    - M15
+    - H1
+    - H4
+  candle_limits:
+    M5: 50
+    M15: 50
+    H1: 200
+    H4: 50
+
+redis:
+  host: localhost
+  port: 6379
+  db: 0
+  ttl:
+    feature_vector: 300
+    open_positions: 60
+    segment_stats: 3600
+    last_reconcile: 30
+
+postgres:
+  host: localhost
+  port: 5432
+  dbname: apex_v4
+
+regime:
+  adx_trend_threshold: 25
+  adx_range_threshold: 20
+
+risk:
+  max_position_size: 0.02        # 2% hard cap
+  kelly_fraction: 0.25           # quarter-Kelly
+  min_trade_sample: 30           # minimum segment history
+  var_hard_limit: 0.05           # 5% portfolio VaR → REJECT
+  var_soft_limit: 0.03           # 3% → SOFT kill switch
+  dd_scalar_thresholds:
+    low: 0.02
+    high: 0.05
+  ewma_lambda: 0.999
+  condition_number_warn: 15.0
+  condition_number_max: 30.0
+
+alpha:
+  min_rr_ratio: 1.8
+  adf_pvalue_threshold: 0.05
+  ou_max_halflife_h1: 48
+  conviction_threshold: 0.65
+  zscore_guard: 3.0
+
+reconciler:
+  heartbeat_seconds: 5
+
+prometheus:
+  port: 8000
