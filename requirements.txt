@@ -1,6 +1,7 @@
 # APEX V4 Requirements
-# macOS dev environment — MetaTrader5 is Windows-only, install manually on Windows:
+# MetaTrader5 — Windows-only, not in this file. Install manually on Windows:
 #   pip install MetaTrader5
+# Set APEX_MT5_MODE=real (or mt5.mode: real in settings.yaml) on the Windows machine.
 # All other packages install on macOS and Windows.
 alembic==1.18.4
 annotated-types==0.7.0

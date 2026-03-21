@@ -306,4 +306,33 @@ and PostgresWriter for async durable writes.
 - [x] All connection details from environment variables
 - [x] Write unit tests — 29 tests (Redis + SQLAlchemy fully mocked)
 - [x] Run all tests — 172/172 pass
-- [ ] Commit: `feat: redis state manager + postgres writer`
+- [x] Commit: `feat: redis state manager + postgres writer` → `5c434a9`
+
+### Review — 2026-03-21
+
+**Status: COMPLETE** — 29 tests, 172/172 total pass.
+
+### RedisStateManager API
+| Method | Key | TTL |
+|---|---|---|
+| `store_feature_vector(fv)` | `fv:{pair}` | 300s |
+| `get_feature_vector(pair)` → `FeatureVector \| None` | `fv:{pair}` | — |
+| `store_open_positions(positions)` | `open_positions` | 60s |
+| `get_open_positions()` → `list` | `open_positions` | — |
+| `set_kill_switch(level)` | `kill_switch` | none |
+| `get_kill_switch()` → `str \| None` | `kill_switch` | — |
+| `set_news_blackout(pair, active, mins)` | `news_blackout_{pair}` | mins×60 |
+
+### PostgresWriter API
+| Method | Table | Async |
+|---|---|---|
+| `write_feature_vector(fv)` | `feature_vectors` | asyncio.to_thread |
+| `write_trade_outcome(outcome)` | `trade_outcomes` | asyncio.to_thread |
+| `write_kill_switch_event(level, reason)` | `kill_switch_events` | asyncio.to_thread |
+
+### Design Decisions
+- RedisStateManager is sync (matches FeatureFabric's sync redis usage)
+- PostgresWriter wraps sync SQLAlchemy in asyncio.to_thread — no asyncpg dependency
+- All DB/Redis errors caught and logged at CRITICAL — pipeline never crashes
+- FakeRedis test helper avoids external test dependency on fakeredis package
+- Connection URLs from env vars: APEX_REDIS_URL, APEX_DATABASE_URL
