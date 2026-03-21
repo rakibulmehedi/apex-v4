@@ -207,9 +207,11 @@ class TestMarketSnapshot:
         snap = MarketSnapshot(**_snapshot(timestamp=old_ts))
         assert snap.is_stale is True
 
-    def test_boundary_5000ms_not_stale(self):
-        # Exactly 5000ms ago should NOT be stale (> 5000, not >=)
-        boundary_ts = _now_ms() - 5000
+    def test_boundary_not_stale(self):
+        # 4990ms ago should NOT be stale (> 5000 threshold).
+        # Using 4990 instead of 5000 avoids race between _now_ms() and
+        # the is_stale property re-reading the clock.
+        boundary_ts = _now_ms() - 4990
         snap = MarketSnapshot(**_snapshot(timestamp=boundary_ts))
         assert snap.is_stale is False
 

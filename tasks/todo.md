@@ -216,4 +216,45 @@ detection, session classification, snapshot validation, and ZMQ publishing.
   - [x] On validation failure: log error, skip — never propagate bad data
 - [x] Write unit tests — 23 tests, MT5 fully mocked
 - [x] Run all tests — 117/117 pass (23 feed + 66 schema + 28 MT5)
-- [ ] Commit: `feat: async market feed`
+- [x] Commit: `7421bcb feat: MT5 abstraction layer` + `58cdf6a feat: async market feed`
+
+### Review — 2026-03-21
+
+**Status: COMPLETE** — 23 feed tests, 117/117 total pass.
+
+### Files Modified/Created
+- `src/market/mt5_types.py` — added `RateBar` dataclass, timeframe constants + `TIMEFRAME_MAP`
+- `src/market/mt5_client.py` — added `copy_rates_from_pos()` to ABC
+- `src/market/mt5_stub.py` — stub implementation generates deterministic fake bars
+- `src/market/mt5_real.py` — wraps `mt5.copy_rates_from_pos()` → list[RateBar]
+- `src/market/feed.py` — `MarketFeed` class (async), `classify_session()` function
+- `tests/unit/test_feed.py` — 23 tests covering all code paths
+
+### Design Decisions
+- Candle close detection via bar-timestamp diffing (poll, compare, emit on change)
+- Trigger timeframes: M5, M15, H1 only — H4 included in snapshot data but doesn't trigger
+- Session classifier is a pure function, priority: OVERLAP > LONDON > NY > ASIA
+- ZMQ socket bound lazily inside `run()` so event loop owns the context
+- `_build_snapshot` catches all exceptions → returns None, logs error, increments counter
+- Snapshot JSON serialized via `model_dump_json()` (Pydantic v2 native)
+
+---
+
+## Session: 2026-03-21 — Feature Fabric (P1.4)
+
+### Goal
+Implement `src/features/fabric.py` — TA-Lib indicator computation from
+MarketSnapshot H1 candles → FeatureVector.
+
+### Checklist
+- [x] Add `spread_max_points` to `config/settings.yaml`
+- [x] Implement `FeatureFabric` in `src/features/fabric.py`
+  - [x] Extract H1 candles → numpy arrays
+  - [x] ATR(14), ADX(14), EMA(200), BBANDS(20,2,2) via TA-Lib
+  - [x] Raise ValueError if < 200 H1 candles
+  - [x] `spread_ok` from config threshold
+  - [x] `news_blackout` from Redis key `news_blackout_{pair}`
+  - [x] Return validated FeatureVector
+- [x] Write unit tests — 26 tests with known input/output pairs
+- [x] Run all tests — 143/143 pass
+- [ ] Commit: `feat: feature fabric`
