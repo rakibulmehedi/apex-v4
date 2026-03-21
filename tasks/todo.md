@@ -174,4 +174,46 @@ APEX_V4_STRATEGY.md Section 6 module contracts exactly. Full validation.
       CalibratedTradeIntent, RiskDecision in `src/market/schemas.py`
 - [x] Write unit tests proving invalid data is rejected (66 tests)
 - [x] Run all tests — 94/94 pass (66 new + 28 existing)
-- [ ] Commit: `feat: pydantic v2 schemas`
+- [x] Commit: `feat: pydantic v2 schemas` → `706ad67`
+
+### Review — 2026-03-21
+
+**Status: COMPLETE** — 66 tests, 94/94 total pass.
+
+### Models Implemented
+| Model | Key Constraints |
+|---|---|
+| OHLCV | volume >= 0, frozen |
+| MarketSnapshot | pair 6 chars, spread > 0, candle minimums (M5:50, M15:50, H1:200, H4:50), is_stale computed (>5000ms), frozen |
+| FeatureVector | pair 6 chars, timestamp > 0, all indicator floats required, frozen |
+| AlphaHypothesis | setup_score 0-30, expected_R >= 1.8, conviction 0.65-1.0 (MR only, None for MOMENTUM), frozen |
+| CalibratedTradeIntent | p_win 0-1, edge > 0, suggested_size 0-0.02, segment_count >= 0, frozen |
+| RiskDecision | gate_failed 1-7 (required for REJECT/REDUCE, None for APPROVE), final_size >= 0, reason non-empty, frozen |
+
+### Design Decisions
+- All models frozen (immutable) — data contracts should never be mutated after creation
+- StrEnum for all enums — clean string serialization, Pydantic-native validation
+- CandleMap as nested model — enforces min-length per timeframe at parse time
+- model_validator(mode="after") for cross-field rules (conviction/strategy, gate_failed/decision)
+- is_stale is a @computed_field property — recalculated on every access against wall clock
+
+---
+
+## Session: 2026-03-21 — Async Market Feed (P1.3)
+
+### Goal
+Implement `src/market/feed.py` — async MT5 data ingestion with candle close
+detection, session classification, snapshot validation, and ZMQ publishing.
+
+### Checklist
+- [x] Add `RateBar` dataclass + timeframe constants to `mt5_types.py`
+- [x] Add `copy_rates_from_pos()` to MT5Client, StubMT5Client, RealMT5Client
+- [x] Implement `MarketFeed` class in `src/market/feed.py`
+  - [x] `classify_session(utc_hour)` — OVERLAP 12-16, LONDON 7-12, NY 16-21, ASIA else
+  - [x] Async polling loop with candle close detection
+  - [x] Build + validate MarketSnapshot per pair on candle close
+  - [x] ZMQ PUSH to `ipc:///tmp/apex_market.ipc`
+  - [x] On validation failure: log error, skip — never propagate bad data
+- [x] Write unit tests — 23 tests, MT5 fully mocked
+- [x] Run all tests — 117/117 pass (23 feed + 66 schema + 28 MT5)
+- [ ] Commit: `feat: async market feed`
