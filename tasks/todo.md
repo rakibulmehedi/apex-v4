@@ -406,3 +406,56 @@ Fires on TRENDING_UP / TRENDING_DOWN only. ATR-based stops, min R:R ≥ 1.8.
 - SL = 1.5×ATR, TP = 4.0×ATR → expected_R ≈ 2.67 (always > 1.8 with fixed mults).
 - Spread bonus threshold: 1 pip (0.00010) — strict < not ≤.
 - conviction=None for MOMENTUM (enforced by AlphaHypothesis validator).
+
+---
+
+## Session: 2026-03-24 — Mean Reversion Pipeline (P2.3–P2.7)
+
+### Goal
+Implement the mean reversion alpha pipeline: ADF gate → Kalman filter → OU MLE
+→ conviction score → signal. Three files, exact Section 7.2/7.3 formulas.
+
+### Checklist
+- [x] Create `src/alpha/kalman.py` — filterpy Kalman wrapper
+  - [x] dim_x=1, dim_z=1
+  - [x] R from rolling variance of last 100 closes
+  - [x] Process each H1 close → return filtered states
+- [x] Create `src/alpha/ou_calibration.py` — OU MLE + conviction
+  - [x] ρ = lag-1 autocorrelation
+  - [x] θ = -ln(ρ) / Δt
+  - [x] μ = mean(X)
+  - [x] σ² = exact formula from Section 7.2
+  - [x] half_life = ln(2) / θ
+  - [x] Reject if ρ ≤ 0 or half_life > 48
+  - [x] Conviction: σ_eq, z-score, erf mapping, 3σ guard
+- [x] Implement `src/alpha/mean_reversion.py` — orchestrator
+  - [x] RANGING regime gate
+  - [x] Min 200 H1 candles gate
+  - [x] ADF p-value < 0.05 gate
+  - [x] Pipeline integration: Kalman → OU → conviction → signal
+  - [x] Return None with reason at every failure
+- [x] Write unit tests — 45 tests (8 Kalman + 22 OU/conviction + 15 orchestrator)
+- [x] Run all tests — 312/312 pass
+- [x] Run /risk-verify — Section 7.2 PASS ✓, Section 7.3 PASS ✓, 0 deviations
+- [ ] Commit: `feat: mean reversion pipeline`
+
+### Review — 2026-03-24
+
+**Status: COMPLETE** — 45 tests, 312/312 total pass. /risk-verify: VERIFIED ✓
+
+### /risk-verify Results
+- Section 7.2 (OU MLE): PASS — all 6 formulas match exactly
+- Section 7.3 (Conviction): PASS — all 4 formulas match exactly
+- Section 7.1, 7.4, 7.5: NOT YET IMPLEMENTED (Phase 3)
+- 0 silent deviations, 0 undocumented approximations
+
+### Design Decisions
+- Three-file split: kalman.py (smoothing), ou_calibration.py (MLE + conviction),
+  mean_reversion.py (orchestrator) — single responsibility.
+- Kalman uses filterpy.kalman.KalmanFilter(dim_x=1, dim_z=1), random-walk model.
+  R updated from rolling variance of last 100 closes — not static.
+- OU MLE Δt = 1.0 (H1 candle intervals).
+- ADF uses maxlag=1, regression="c", autolag=None. Catches ValueError on constant input.
+- Direction from z-score: z < 0 (below mean) → LONG, z > 0 → SHORT.
+- SL = 1.5×ATR against direction, TP = μ (mean reversion target).
+- Setup score: +10 ADF<0.01, +10 HL<24, +5 LONDON/OVERLAP, +5 conviction>0.80.
