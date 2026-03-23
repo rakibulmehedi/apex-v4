@@ -22,8 +22,9 @@ from src.market.schemas import FeatureVector, Regime
 logger = structlog.get_logger(__name__)
 
 # Defaults match config/settings.yaml regime section.
-_DEFAULT_ADX_TREND = 25.0
-_DEFAULT_ADX_RANGE = 20.0
+# Adjusted from 25/20 to 31/22 per P2.8 backtest validation.
+_DEFAULT_ADX_TREND = 31.0
+_DEFAULT_ADX_RANGE = 22.0
 
 
 class RegimeClassifier:

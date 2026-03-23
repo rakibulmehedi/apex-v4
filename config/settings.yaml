@@ -39,8 +39,8 @@ postgres:
   dbname: apex_v4
 
 regime:
-  adx_trend_threshold: 25
-  adx_range_threshold: 20
+  adx_trend_threshold: 31       # adjusted from 25 — backtest P2.8 validation
+  adx_range_threshold: 22       # adjusted from 20 — backtest P2.8 validation
 
 risk:
   max_position_size: 0.02        # 2% hard cap

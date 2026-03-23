@@ -1,6 +1,7 @@
 """Unit tests for src/regime/classifier.py — RegimeClassifier.
 
 Covers all 6 classification branches + edge cases with synthetic FeatureVectors.
+Default thresholds: adx_trend=31, adx_range=22 (from P2.8 backtest validation).
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ from src.regime.classifier import RegimeClassifier
 # ---------------------------------------------------------------------------
 
 def _make_fv(
-    adx: float = 30.0,
+    adx: float = 35.0,
     ema_200: float = 1.10000,
     spread_ok: bool = True,
     news_blackout: bool = False,
@@ -46,7 +47,7 @@ class TestNewsBlackout:
 
     def test_news_blackout_returns_undefined(self) -> None:
         clf = RegimeClassifier()
-        fv = _make_fv(adx=30.0, news_blackout=True)
+        fv = _make_fv(adx=35.0, news_blackout=True)
         assert clf.classify(fv, close_price=1.12000) == Regime.UNDEFINED
 
     def test_news_blackout_overrides_trending(self) -> None:
@@ -56,7 +57,7 @@ class TestNewsBlackout:
         assert clf.classify(fv, close_price=1.12000) == Regime.UNDEFINED
 
     def test_news_blackout_overrides_ranging(self) -> None:
-        """Even with ADX < 20, news blackout wins."""
+        """Even with ADX < 22, news blackout wins."""
         clf = RegimeClassifier()
         fv = _make_fv(adx=10.0, news_blackout=True)
         assert clf.classify(fv, close_price=1.12000) == Regime.UNDEFINED
@@ -71,7 +72,7 @@ class TestSpreadNotOk:
 
     def test_spread_not_ok_returns_undefined(self) -> None:
         clf = RegimeClassifier()
-        fv = _make_fv(adx=30.0, spread_ok=False)
+        fv = _make_fv(adx=35.0, spread_ok=False)
         assert clf.classify(fv, close_price=1.12000) == Regime.UNDEFINED
 
     def test_spread_overrides_trending(self) -> None:
@@ -86,20 +87,20 @@ class TestSpreadNotOk:
 
 
 # ---------------------------------------------------------------------------
-# Rule 3: ADX > 25 AND close > EMA200 → TRENDING_UP
+# Rule 3: ADX > 31 AND close > EMA200 → TRENDING_UP
 # ---------------------------------------------------------------------------
 
 class TestTrendingUp:
-    """Rule 3: ADX > trend threshold AND close > EMA200."""
+    """Rule 3: ADX > trend threshold (31) AND close > EMA200."""
 
     def test_basic_trending_up(self) -> None:
         clf = RegimeClassifier()
-        fv = _make_fv(adx=30.0, ema_200=1.10000)
+        fv = _make_fv(adx=35.0, ema_200=1.10000)
         assert clf.classify(fv, close_price=1.11000) == Regime.TRENDING_UP
 
     def test_adx_just_above_threshold(self) -> None:
         clf = RegimeClassifier()
-        fv = _make_fv(adx=25.01, ema_200=1.10000)
+        fv = _make_fv(adx=31.01, ema_200=1.10000)
         assert clf.classify(fv, close_price=1.10001) == Regime.TRENDING_UP
 
     def test_strong_trend_up(self) -> None:
@@ -109,20 +110,20 @@ class TestTrendingUp:
 
 
 # ---------------------------------------------------------------------------
-# Rule 4: ADX > 25 AND close < EMA200 → TRENDING_DOWN
+# Rule 4: ADX > 31 AND close < EMA200 → TRENDING_DOWN
 # ---------------------------------------------------------------------------
 
 class TestTrendingDown:
-    """Rule 4: ADX > trend threshold AND close < EMA200."""
+    """Rule 4: ADX > trend threshold (31) AND close < EMA200."""
 
     def test_basic_trending_down(self) -> None:
         clf = RegimeClassifier()
-        fv = _make_fv(adx=30.0, ema_200=1.10000)
+        fv = _make_fv(adx=35.0, ema_200=1.10000)
         assert clf.classify(fv, close_price=1.09000) == Regime.TRENDING_DOWN
 
     def test_adx_just_above_threshold_down(self) -> None:
         clf = RegimeClassifier()
-        fv = _make_fv(adx=25.01, ema_200=1.10000)
+        fv = _make_fv(adx=31.01, ema_200=1.10000)
         assert clf.classify(fv, close_price=1.09999) == Regime.TRENDING_DOWN
 
     def test_strong_trend_down(self) -> None:
@@ -132,11 +133,11 @@ class TestTrendingDown:
 
 
 # ---------------------------------------------------------------------------
-# Rule 5: ADX < 20 → RANGING
+# Rule 5: ADX < 22 → RANGING
 # ---------------------------------------------------------------------------
 
 class TestRanging:
-    """Rule 5: ADX < range threshold → RANGING."""
+    """Rule 5: ADX < range threshold (22) → RANGING."""
 
     def test_basic_ranging(self) -> None:
         clf = RegimeClassifier()
@@ -145,7 +146,7 @@ class TestRanging:
 
     def test_adx_just_below_range(self) -> None:
         clf = RegimeClassifier()
-        fv = _make_fv(adx=19.99)
+        fv = _make_fv(adx=21.99)
         assert clf.classify(fv, close_price=1.10000) == Regime.RANGING
 
     def test_very_low_adx(self) -> None:
@@ -155,32 +156,32 @@ class TestRanging:
 
 
 # ---------------------------------------------------------------------------
-# Rule 6: ADX 20-25 (dead zone) → UNDEFINED
+# Rule 6: ADX 22-31 (dead zone) → UNDEFINED
 # ---------------------------------------------------------------------------
 
 class TestDeadZone:
-    """Rule 6: ADX between range and trend thresholds → UNDEFINED."""
+    """Rule 6: ADX between range (22) and trend (31) thresholds → UNDEFINED."""
 
     def test_adx_in_dead_zone(self) -> None:
+        clf = RegimeClassifier()
+        fv = _make_fv(adx=26.0)
+        assert clf.classify(fv, close_price=1.10000) == Regime.UNDEFINED
+
+    def test_adx_at_range_boundary(self) -> None:
+        """ADX == 22.0 is NOT < 22, so it falls into dead zone."""
         clf = RegimeClassifier()
         fv = _make_fv(adx=22.0)
         assert clf.classify(fv, close_price=1.10000) == Regime.UNDEFINED
 
-    def test_adx_at_range_boundary(self) -> None:
-        """ADX == 20.0 is NOT < 20, so it falls into dead zone."""
-        clf = RegimeClassifier()
-        fv = _make_fv(adx=20.0)
-        assert clf.classify(fv, close_price=1.10000) == Regime.UNDEFINED
-
     def test_adx_at_trend_boundary(self) -> None:
-        """ADX == 25.0 is NOT > 25, so it falls into dead zone."""
+        """ADX == 31.0 is NOT > 31, so it falls into dead zone."""
         clf = RegimeClassifier()
-        fv = _make_fv(adx=25.0)
+        fv = _make_fv(adx=31.0)
         assert clf.classify(fv, close_price=1.10000) == Regime.UNDEFINED
 
     def test_adx_just_above_range(self) -> None:
         clf = RegimeClassifier()
-        fv = _make_fv(adx=20.01)
+        fv = _make_fv(adx=22.01)
         assert clf.classify(fv, close_price=1.10000) == Regime.UNDEFINED
 
 
@@ -192,19 +193,16 @@ class TestEdgeCases:
     """Boundary conditions and special scenarios."""
 
     def test_close_equals_ema_with_high_adx(self) -> None:
-        """close == ema_200 with ADX > 25: not > and not <, falls to rule 5/6."""
+        """close == ema_200 with ADX > 31: not > and not <, falls through."""
         clf = RegimeClassifier()
-        fv = _make_fv(adx=30.0, ema_200=1.10000)
-        # close == ema → neither rule 3 nor rule 4 fires → rule 5 (if adx < 20)
-        # or rule 6 (adx 20-25). Here ADX=30 so neither rule 3 (close not >)
-        # nor rule 4 (close not <) fires. ADX > adx_range so rule 5 doesn't
-        # fire either. Falls through to rule 6 → UNDEFINED.
+        fv = _make_fv(adx=35.0, ema_200=1.10000)
+        # close == ema → neither rule 3 nor rule 4. ADX > adx_range → not rule 5.
+        # Falls to rule 6 → UNDEFINED.
         assert clf.classify(fv, close_price=1.10000) == Regime.UNDEFINED
 
     def test_custom_thresholds(self) -> None:
         """Custom thresholds override defaults."""
         clf = RegimeClassifier(adx_trend_threshold=30.0, adx_range_threshold=15.0)
-        # ADX 25 would be trending with default, but dead zone with threshold=30
         fv = _make_fv(adx=25.0, ema_200=1.05)
         assert clf.classify(fv, close_price=1.12000) == Regime.UNDEFINED
 
@@ -221,13 +219,12 @@ class TestEdgeCases:
     def test_different_pairs(self) -> None:
         """Classifier works for any pair."""
         clf = RegimeClassifier()
-        fv = _make_fv(adx=30.0, ema_200=1.26000, pair="GBPUSD")
+        fv = _make_fv(adx=35.0, ema_200=1.26000, pair="GBPUSD")
         assert clf.classify(fv, close_price=1.27000) == Regime.TRENDING_UP
 
     def test_priority_news_over_spread(self) -> None:
         """Both news_blackout and spread_not_ok: news_blackout checked first."""
         clf = RegimeClassifier()
         fv = _make_fv(news_blackout=True, spread_ok=False)
-        # Both would return UNDEFINED, but news_blackout is rule 1
         result = clf.classify(fv, close_price=1.10000)
         assert result == Regime.UNDEFINED
