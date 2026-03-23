@@ -370,3 +370,39 @@ No ML, no probabilities. Pure deterministic rules from FeatureVector inputs.
 - `_log_and_return` helper logs every classification with full context.
 - close == ema_200 with ADX > 25 → falls through to UNDEFINED (neither > nor <).
 - ADX == 20 and ADX == 25 are both dead zone (strict inequalities in rules).
+
+---
+
+## Session: 2026-03-24 — Momentum Engine (P2.2)
+
+### Goal
+Implement `src/alpha/momentum.py` — multi-TF momentum engine.
+Fires on TRENDING_UP / TRENDING_DOWN only. ATR-based stops, min R:R ≥ 1.8.
+
+### Checklist
+- [x] Implement `MomentumEngine` in `src/alpha/momentum.py`
+  - [x] Regime gate: only TRENDING_UP or TRENDING_DOWN
+  - [x] Multi-TF confirmation: H4 EMA20 + H1 EMA20 agree with direction
+  - [x] Entry zone: M15 EMA20 ± 0.2×ATR
+  - [x] Stop loss: entry ± 1.5×ATR against direction
+  - [x] Take profit: entry ± 4.0×ATR in direction
+  - [x] Setup score 0-30 (4 components)
+  - [x] Reject if expected_R < 1.8
+  - [x] Log every rejection with reason
+- [x] Write unit tests — 33 tests (scoring, rejections, edge cases)
+- [x] Run all tests — 267/267 pass
+- [ ] Commit: `feat: momentum engine`
+
+### Review — 2026-03-24
+
+**Status: COMPLETE** — 33 tests, 267/267 total pass.
+
+### Design Decisions
+- `generate(fv, regime, snapshot)` takes the MarketSnapshot for EMA20 computation
+  on M15/H1/H4 candle arrays. FeatureVector only has EMA-200, not EMA-20.
+- Multi-TF confirmation: H4 close vs H4 EMA20, H1 close vs H1 EMA20 — both
+  must agree with regime direction.
+- Entry mid = M15 EMA20; entry_zone = (mid - 0.2×ATR, mid + 0.2×ATR).
+- SL = 1.5×ATR, TP = 4.0×ATR → expected_R ≈ 2.67 (always > 1.8 with fixed mults).
+- Spread bonus threshold: 1 pip (0.00010) — strict < not ≤.
+- conviction=None for MOMENTUM (enforced by AlphaHypothesis validator).
