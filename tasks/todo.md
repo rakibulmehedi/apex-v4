@@ -336,3 +336,37 @@ and PostgresWriter for async durable writes.
 - All DB/Redis errors caught and logged at CRITICAL — pipeline never crashes
 - FakeRedis test helper avoids external test dependency on fakeredis package
 - Connection URLs from env vars: APEX_REDIS_URL, APEX_DATABASE_URL
+
+---
+
+## Session: 2026-03-24 — Regime Classifier (P2.1)
+
+### Goal
+Implement `src/regime/classifier.py` — hard ADX-based regime classification.
+No ML, no probabilities. Pure deterministic rules from FeatureVector inputs.
+
+### Checklist
+- [x] Implement `RegimeClassifier` in `src/regime/classifier.py`
+  - [x] news_blackout → UNDEFINED
+  - [x] spread_ok False → UNDEFINED
+  - [x] ADX > 25 AND close > EMA200 → TRENDING_UP
+  - [x] ADX > 25 AND close < EMA200 → TRENDING_DOWN
+  - [x] ADX < 20 → RANGING
+  - [x] ADX 20-25 → UNDEFINED
+  - [x] structlog logging for every classification
+- [x] Write unit tests — 25 tests covering all 6 branches + edge cases
+- [x] Run all tests — 234/234 pass
+- [ ] Commit: `feat: regime classifier`
+
+### Review — 2026-03-24
+
+**Status: COMPLETE** — 25 tests, 234/234 total pass.
+
+### Design Decisions
+- `classify(fv, close_price)` takes close_price as separate arg because
+  FeatureVector (frozen schema from Section 6) has no raw close field.
+  The caller (pipeline) has access to the latest H1 close from MarketSnapshot.
+- Thresholds injected via constructor (default 25/20 matching settings.yaml).
+- `_log_and_return` helper logs every classification with full context.
+- close == ema_200 with ADX > 25 → falls through to UNDEFINED (neither > nor <).
+- ADX == 20 and ADX == 25 are both dead zone (strict inequalities in rules).
