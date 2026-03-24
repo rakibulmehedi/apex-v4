@@ -519,3 +519,116 @@ Signals:
   typical Forex data. These thresholds tune the regime distribution.
 - Backtest uses H1 for all TF slots (M5/M15/H4 reuse H1 subsets) since
   we only generate H1 synthetic data. Multi-TF validation deferred to live.
+
+---
+
+## Session: 2026-03-24 — Performance Database (P3.1)
+
+### Goal
+Implement `src/calibration/history.py` — PerformanceDatabase class for
+segment-keyed trade outcome queries. 90-day rolling window, min 30-trade gate.
+
+### Checklist
+- [x] Implement `PerformanceDatabase` in `src/calibration/history.py`
+  - [x] `get_segment_stats(strategy, regime, session)` → dict | None
+  - [x] 90-day rolling window via `closed_at >= cutoff`
+  - [x] Return None if count < 30 (ADR-002)
+  - [x] Return: {win_rate, avg_R, trade_count, last_updated}
+  - [x] `update_segment(outcome)` → insert into trade_outcomes
+  - [x] `bootstrap_from_v3(v3_data)` → bulk import, fill_id=None, return count
+  - [x] All DB errors logged at CRITICAL, never crash
+- [x] Write unit tests — 26 tests (SQLite in-memory, real SQL aggregation)
+- [x] Run all tests — 338/338 pass (26 new + 312 existing)
+- [ ] Commit: `feat: performance database (P3.1)`
+
+### Review — 2026-03-24
+
+**Status: COMPLETE** — 26 tests, 338/338 total pass.
+
+### Test Coverage
+| Test Class | Count | What It Validates |
+|---|---|---|
+| TestSegmentMinimumGate | 4 | None at 0/29 trades, stats at 30/50 |
+| TestSegmentWinRate | 4 | 100%/0%/66.7% win rates, avg_R calc |
+| TestSegment90DayWindow | 2 | Old trades excluded, boundary behavior |
+| TestSegmentIsolation | 3 | Strategy/regime/session filtering |
+| TestSegmentReturnFields | 3 | All keys present, correct types |
+| TestUpdateSegment | 3 | Insert, multiple inserts, error safety |
+| TestBootstrapFromV3 | 6 | Bulk import, fill_id=None, error, roundtrip |
+| TestSegmentErrorHandling | 1 | DB error returns None |
+
+### Design Decisions
+- SQLite in-memory DB for tests — exercises real SQL aggregation (COUNT, AVG,
+  filter) rather than brittle mock chains. Raw DDL for table creation since
+  SQLite doesn't support BigInteger AUTOINCREMENT or PostgreSQL enums.
+- `case(won==True → 1, else → 0)` for win_rate AVG — portable across
+  PostgreSQL and SQLite (avoids CAST(bool AS int) dialect issues).
+- Session factory injected via constructor, same pattern as PostgresWriter.
+- `bootstrap_from_v3` sets fill_id=None — V3 trades have no fill tracking,
+  this is the provenance marker.
+
+---
+
+## Session: 2026-03-24 — Calibration Engine + EWMA Covariance + Kill Switch (P3.2–P3.4)
+
+### Goal
+Implement three Phase 3 modules:
+- P3.2: CalibrationEngine (Kelly criterion, dd_scalar, correlation_scalar)
+- P3.3: EWMACovarianceMatrix (EWMA update, eigenvalue shrinkage, Φ(κ), VaR)
+- P3.4: KillSwitch (3-level, escalation-only, dual persistence, chaos restart)
+
+### Checklist
+- [x] Implement `CalibrationEngine` in `src/calibration/engine.py`
+  - [x] Exact Section 7.1: f* = (p*b - q)/b, quarter-Kelly, 2% cap
+  - [x] dd_scalar: <2% → 1.0, <5% → 0.5, ≥5% → None
+  - [x] correlation_scalar: ≥2 same-currency → 0.5
+  - [x] Return None with logged reason for every rejection
+- [x] Write unit tests — 33 tests (Kelly math, dd branches, correlation, rejections)
+- [x] Run /risk-verify — Section 7.1 PASS ✓
+- [x] All tests pass — 371/371
+- [x] Implement `EWMACovarianceMatrix` in `src/risk/covariance.py`
+  - [x] EWMA: Σ_t = 0.999 × Σ_{t-1} + 0.001 × (r × r^T)
+  - [x] Eigenvalue shrinkage: floor = max_eig / 15.0, clip, reconstruct
+  - [x] Φ(κ): 1.0 if κ≤15, exp(-0.5×(κ-15)) if 15<κ<30, 0.0 if κ≥30
+  - [x] VaR_99 = 2.326 × sqrt(W^T × Σ_reg × W) × portfolio_value
+- [x] Write unit tests — 33 tests (EWMA update, shrinkage, Φ(κ), VaR, edge cases)
+- [x] Run /risk-verify — Sections 7.1–7.5 ALL PASS ✓ (5/5 verified, 0 deviations)
+- [x] All tests pass — 404/404
+- [x] Implement `KillSwitch` in `src/risk/kill_switch.py`
+  - [x] Three levels: SOFT (block signals), HARD (flatten), EMERGENCY (disconnect+dump)
+  - [x] asyncio.Lock state management
+  - [x] Escalation only — HARD → SOFT forbidden
+  - [x] Dual persistence: Redis + PostgreSQL on every change
+  - [x] Startup recovery from PostgreSQL
+  - [x] Manual reset: exact "I CONFIRM SYSTEM IS SAFE" or PermissionError
+  - [x] EMERGENCY: MT5 disconnect, JSON state dump, alert callback
+- [x] Write unit tests — 38 tests (escalation, persistence, recovery, chaos, actions)
+- [x] All tests pass — 442/442
+- [ ] Commit: `feat: calibration engine + EWMA covariance + kill switch (P3.2–P3.4)`
+
+### Review — 2026-03-24
+
+**Status: COMPLETE** — 104 new tests, 442/442 total pass. /risk-verify: 5/5 VERIFIED ✓
+
+### /risk-verify Results (Full)
+| Section | Status | Deviations |
+|---|---|---|
+| 7.1 Kelly Criterion | PASS ✓ | 0 |
+| 7.2 OU Process MLE | PASS ✓ | 0 |
+| 7.3 Conviction Score | PASS ✓ | 0 |
+| 7.4 EWMA Covariance | PASS ✓ | 0 |
+| 7.5 Portfolio VaR | PASS ✓ | 0 |
+
+### Design Decisions
+- CalibrationEngine: `suggested_size` is a fraction [0, 0.02], not dollar amount —
+  execution layer multiplies by equity. Matches Pydantic schema.
+- CalibrationEngine: `calibrate()` takes explicit `session_label` from FeatureVector.
+- EWMA: γ = 0.5 for Φ(κ) decay — spec uses symbolic γ, task specifies 0.5.
+- EWMA: Initial Σ = I × 1e-6 (near-zero variance, not uninformative).
+- EWMA: VaR threshold gates (>5% REJECT, >3% SOFT) deferred to governor.py (P3.6).
+- KillSwitch: IntEnum ordering (NONE=0, SOFT=1, HARD=2, EMERGENCY=3) makes
+  escalation a simple `>` comparison.
+- KillSwitch: DB reset writes "NONE" as new_state; DB enum has no NONE value so
+  level column uses SOFT as a placeholder for reset events.
+- KillSwitch: SQLite tests use StaticPool to share one in-memory DB across
+  ORM connections and raw DDL.
