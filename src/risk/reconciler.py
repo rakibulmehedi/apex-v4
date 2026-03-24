@@ -31,6 +31,7 @@ from typing import Any
 import structlog
 
 from src.market.mt5_client import MT5Client
+from src.observability.metrics import STATE_DRIFT_TOTAL
 from src.risk.kill_switch import KillSwitch
 
 logger = structlog.get_logger(__name__)
@@ -150,6 +151,7 @@ class StateReconciler:
                 "ghost": sorted(ghost_tickets),
             }
 
+            STATE_DRIFT_TOTAL.inc()
             logger.critical(
                 "reconciler_state_drift",
                 phantom=diff["phantom"],

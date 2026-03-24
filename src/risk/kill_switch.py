@@ -27,6 +27,7 @@ from typing import Any
 import structlog
 
 from src.market.mt5_client import MT5Client
+from src.observability.metrics import KILL_SWITCH_TOTAL
 
 logger = structlog.get_logger(__name__)
 
@@ -191,6 +192,9 @@ class KillSwitch:
 
             previous = self.label or "NONE"
             self._level = requested
+
+            # ── metrics ───────────────────────────────────────────
+            KILL_SWITCH_TOTAL.labels(level=level_label).inc()
 
             # ── persist to Redis + PostgreSQL ─────────────────────
             self._persist_to_redis(level_label)

@@ -30,6 +30,14 @@ from src.market.schemas import (
     RiskDecision,
     RiskState,
 )
+from src.observability.metrics import (
+    COVARIANCE_CONDITION,
+    CURRENT_DRAWDOWN_PCT,
+    GATE_REJECTIONS_TOTAL,
+    OPEN_POSITIONS_COUNT,
+    PORTFOLIO_VAR_PCT,
+    SIGNALS_GENERATED_TOTAL,
+)
 from src.risk.covariance import EWMACovarianceMatrix
 from src.risk.kill_switch import KillSwitch
 
@@ -100,9 +108,14 @@ class RiskGovernor:
         size = intent.suggested_size
         risk_state = RiskState.NORMAL
 
+        # ── metrics: gauges updated every evaluation ─────────────
+        CURRENT_DRAWDOWN_PCT.set(current_dd)
+        OPEN_POSITIONS_COUNT.set(len(open_positions) if open_positions else 0)
+
         # ── Gate 1: Kill switch ────────────────────────────────────
         if not self._ks.allows_new_signals():
             logger.info("gate_1_REJECT", pair=pair, reason="kill_switch_active")
+            GATE_REJECTIONS_TOTAL.labels(gate_number="1", reason="kill_switch_active").inc()
             return RiskDecision(
                 decision=Decision.REJECT,
                 final_size=0.0,
@@ -115,6 +128,7 @@ class RiskGovernor:
         # ── Gate 2: Data freshness ────────────────────────────────
         if snapshot.is_stale:
             logger.info("gate_2_REJECT", pair=pair, reason="stale_data")
+            GATE_REJECTIONS_TOTAL.labels(gate_number="2", reason="stale_data").inc()
             return RiskDecision(
                 decision=Decision.REJECT,
                 final_size=0.0,
@@ -143,6 +157,7 @@ class RiskGovernor:
                 sl=sl, tp=tp, entry_zone=hypothesis.entry_zone,
                 direction=hypothesis.direction.value,
             )
+            GATE_REJECTIONS_TOTAL.labels(gate_number="3", reason="invalid_signal_geometry").inc()
             return RiskDecision(
                 decision=Decision.REJECT,
                 final_size=0.0,
@@ -170,11 +185,14 @@ class RiskGovernor:
         var_99 = self._cov.portfolio_var(weights, portfolio_value)
         var_pct = var_99 / portfolio_value if portfolio_value > 0 else 0.0
 
+        PORTFOLIO_VAR_PCT.set(var_pct)
+
         if var_pct > _VAR_HARD_LIMIT:
             logger.info(
                 "gate_5_REJECT", pair=pair, reason="var_limit_breached",
                 var_pct=round(var_pct, 4),
             )
+            GATE_REJECTIONS_TOTAL.labels(gate_number="5", reason="var_limit_breached").inc()
             return RiskDecision(
                 decision=Decision.REJECT,
                 final_size=0.0,
@@ -195,10 +213,12 @@ class RiskGovernor:
 
         # ── Gate 6: Covariance condition number ───────────────────
         phi = self._cov.decay_multiplier()
+        COVARIANCE_CONDITION.set(self._cov.condition_number())
 
         if phi == 0.0:
             await self._ks.trigger("HARD", "correlation_crisis: Φ(κ)=0")
             logger.info("gate_6_REJECT", pair=pair, reason="correlation_crisis")
+            GATE_REJECTIONS_TOTAL.labels(gate_number="6", reason="correlation_crisis").inc()
             return RiskDecision(
                 decision=Decision.REJECT,
                 final_size=0.0,
@@ -217,6 +237,7 @@ class RiskGovernor:
                 "gate_7_REJECT", pair=pair, reason="max_drawdown",
                 current_dd=round(current_dd, 4),
             )
+            GATE_REJECTIONS_TOTAL.labels(gate_number="7", reason="max_drawdown").inc()
             return RiskDecision(
                 decision=Decision.REJECT,
                 final_size=0.0,
@@ -239,6 +260,11 @@ class RiskGovernor:
         # ── All gates passed ──────────────────────────────────────
         # If any REDUCE happened, return REDUCE decision.
         if size < intent.suggested_size:
+            SIGNALS_GENERATED_TOTAL.labels(
+                strategy=hypothesis.strategy.value,
+                regime=hypothesis.regime.value,
+                pair=pair,
+            ).inc()
             logger.info(
                 "governor_REDUCE", pair=pair,
                 original=round(intent.suggested_size, 6),
@@ -260,6 +286,11 @@ class RiskGovernor:
                 gate_failed=gate,
             )
 
+        SIGNALS_GENERATED_TOTAL.labels(
+            strategy=hypothesis.strategy.value,
+            regime=hypothesis.regime.value,
+            pair=pair,
+        ).inc()
         logger.info(
             "governor_APPROVE", pair=pair,
             final_size=round(size, 6),

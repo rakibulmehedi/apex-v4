@@ -16,6 +16,7 @@ from typing import Any
 import structlog
 
 from src.calibration.history import PerformanceDatabase
+from src.observability.metrics import WIN_RATE_7D
 
 logger = structlog.get_logger(__name__)
 
@@ -129,5 +130,10 @@ class KellyInputUpdater:
                 session=session,
                 trade_count=stats["trade_count"],
             )
+
+        # ── update 7-day win rate gauge ─────────────────────────
+        win_rate_7d = self._perf_db.get_7d_win_rate()
+        if win_rate_7d is not None:
+            WIN_RATE_7D.set(win_rate_7d)
 
         return stats

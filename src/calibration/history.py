@@ -115,6 +115,45 @@ class PerformanceDatabase:
             )
             return None
 
+    # ── 7-day win rate (for observability gauge) ──────────────────────
+
+    def get_7d_win_rate(self) -> float | None:
+        """Return win rate across all segments over the last 7 days.
+
+        Returns
+        -------
+        float | None
+            Win rate as a fraction (0.0–1.0), or None if no trades in window.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+
+        try:
+            with self._sf() as db:  # type: Session
+                row = (
+                    db.query(
+                        func.count(TradeOutcome.id).label("total"),
+                        func.sum(
+                            case(
+                                (TradeOutcome.won == True, 1),  # noqa: E712
+                                else_=0,
+                            )
+                        ).label("wins"),
+                    )
+                    .filter(TradeOutcome.closed_at >= cutoff)
+                    .one()
+                )
+
+                total = row.total or 0
+                if total == 0:
+                    return None
+
+                wins = row.wins or 0
+                return wins / total
+
+        except Exception:
+            logger.critical("get_7d_win_rate_failed", exc_info=True)
+            return None
+
     # ── insert ────────────────────────────────────────────────────────
 
     def update_segment(self, outcome: dict[str, Any]) -> None:

@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from db.models import Fill, make_session_factory
 from src.execution.gateway import FillRecord
+from src.observability.metrics import R_MULTIPLE, TRADES_WON_TOTAL
 
 logger = structlog.get_logger(__name__)
 
@@ -191,6 +192,14 @@ class FillTracker:
             "opened_at": meta["opened_at"],
             "closed_at": closed_at,
         }
+
+        # ── metrics ──────────────────────────────────────────────
+        R_MULTIPLE.observe(r_multiple)
+        if won:
+            TRADES_WON_TOTAL.labels(
+                strategy=meta["strategy"],
+                regime=meta["regime"],
+            ).inc()
 
         logger.info(
             "trade_closed",

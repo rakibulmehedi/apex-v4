@@ -29,6 +29,11 @@ from dataclasses import dataclass
 import structlog
 
 from src.market.mt5_client import MT5Client
+from src.observability.metrics import (
+    SIGNAL_LATENCY_MS,
+    SLIPPAGE_POINTS,
+    TRADES_EXECUTED_TOTAL,
+)
 from src.market.mt5_types import TRADE_RETCODE_DONE
 from src.market.schemas import (
     AlphaHypothesis,
@@ -122,6 +127,7 @@ class ExecutionGateway:
             Fill details on success, None on any rejection or failure.
         """
         pair = hypothesis.pair
+        _t0 = time.monotonic()
 
         # ── Pre-flight 1: Kill switch ───────────────────────────────
         if not self._ks.allows_new_signals():
@@ -209,11 +215,13 @@ class ExecutionGateway:
 
         # ── Paper trading mode ──────────────────────────────────────
         if self._paper:
-            return self._paper_fill(
+            fill = self._paper_fill(
                 hypothesis=hypothesis,
                 volume=volume,
                 fill_price=requested_price,
             )
+            self._record_fill_metrics(fill, _t0)
+            return fill
 
         # ── Live execution ──────────────────────────────────────────
         request = {
@@ -276,7 +284,22 @@ class ExecutionGateway:
             slippage=round(slippage, 6),
         )
 
+        self._record_fill_metrics(fill, _t0)
         return fill
+
+    # ── metrics helper ──────────────────────────────────────────
+
+    @staticmethod
+    def _record_fill_metrics(fill: FillRecord, t0: float) -> None:
+        """Record Prometheus metrics for a successful fill."""
+        TRADES_EXECUTED_TOTAL.labels(
+            strategy=fill.strategy,
+            regime=fill.regime,
+            direction=fill.direction,
+        ).inc()
+        SLIPPAGE_POINTS.observe(fill.slippage_points)
+        latency_ms = (time.monotonic() - t0) * 1000
+        SIGNAL_LATENCY_MS.observe(latency_ms)
 
     # ── paper trading helper ────────────────────────────────────────
 
