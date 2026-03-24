@@ -642,14 +642,68 @@ Implement `src/execution/gateway.py` — MT5 order execution with pre-flight
 checks and paper trading mode. Only reached after RiskDecision = APPROVE.
 
 ### Checklist
-- [ ] Implement `ExecutionGateway` in `src/execution/gateway.py`
-  - [ ] Pre-flight checks: kill switch, decision APPROVE, size > 0, prices valid, freshness < 2s
-  - [ ] Volume calculation: round(final_size × equity / 100000, 2), clamp [0.01, 100.0]
-  - [ ] Use mt5.symbol_info_tick(pair).ask for LONG, .bid for SHORT
-  - [ ] Live mode: mt5.order_send(), check TRADE_RETCODE_DONE
-  - [ ] Paper mode: skip order_send, simulate fill at current ask/bid, slippage=0
-  - [ ] Return FillRecord dataclass on success, None on rejection/failure
-  - [ ] structlog for every decision path
-- [ ] Write unit tests — pre-flight rejections, volume calc, live/paper, retcode handling
-- [ ] Run all tests — 493 existing + new gateway tests all pass
-- [ ] Update todo.md with review
+- [x] Implement `ExecutionGateway` in `src/execution/gateway.py`
+  - [x] Pre-flight checks: kill switch, decision APPROVE, size > 0, prices valid, freshness < 2s
+  - [x] Volume calculation: round(final_size × equity / 100000, 2), clamp [0.01, 100.0]
+  - [x] Use mt5.symbol_info_tick(pair).ask for LONG, .bid for SHORT
+  - [x] Live mode: mt5.order_send(), check TRADE_RETCODE_DONE
+  - [x] Paper mode: skip order_send, simulate fill at current ask/bid, slippage=0
+  - [x] Return FillRecord dataclass on success, None on rejection/failure
+  - [x] structlog for every decision path
+- [x] Write unit tests — 33 tests, pre-flight rejections, volume calc, live/paper, retcode handling
+- [x] Run all tests — 526/526 pass
+- [x] Commit: `cdf6d16 feat: execution gateway — pre-flight checks + paper trading (P4.1)`
+
+### Review — 2026-03-25
+
+**Status: COMPLETE** — 33 tests, 526/526 total pass.
+
+---
+
+## Session: 2026-03-25 — Phase 4: Fill Tracker + Learning Loop (P4.2–P4.4)
+
+### Goal
+Implement the post-execution feedback loop: FillTracker → TradeOutcomeRecorder
+→ KellyInputUpdater. Prove with integration test.
+
+### Checklist
+- [x] Implement `FillTracker` in `src/execution/fill_tracker.py`
+  - [x] `record_fill(fill)` → PostgreSQL fills table + in-memory cache
+  - [x] `record_close(order_id, close_price, close_time, stop_loss, session)` → R-multiple + outcome dict
+  - [x] LONG R = (close - entry) / risk, SHORT R = (entry - close) / risk
+  - [x] Zero risk guard, unknown order guard
+- [x] Implement `TradeOutcomeRecorder` in `src/learning/recorder.py`
+  - [x] `record(outcome)` → delegates to PerformanceDatabase.update_segment()
+  - [x] Returns True on success, False on failure
+- [x] Implement `KellyInputUpdater` in `src/learning/updater.py`
+  - [x] `update_segment(strategy, regime, session)` → recalc from DB
+  - [x] Cache to Redis `segment:{s}:{r}:{s}`, TTL 3600s
+  - [x] Clear Redis key when segment < 30 trades
+  - [x] Warning log when segment drops below minimum
+- [x] Write unit tests — 29 tests (14 fill_tracker + 5 recorder + 10 updater)
+- [x] Write integration test — full feedback cycle: fill → close → record → update → calibrate
+- [x] Run all tests — 556/556 pass
+- [x] Tag v4.0-phase4
+
+### Review — 2026-03-25
+
+**Status: COMPLETE** — 30 new tests, 556/556 total pass.
+
+### Integration Test Scenario
+1. Seed 30 trades (18W/12L) → segment live at 60% win rate
+2. CalibrationEngine reads segment → returns CalibratedTradeIntent
+3. FillTracker records new fill → DB + in-memory cache
+4. Close position → R-multiple calculated, outcome dict returned
+5. Recorder persists outcome → 31 trades in segment
+6. Updater recalculates → Redis cache updated, trade_count=31
+7. CalibrationEngine reads UPDATED stats → p_win changed from 0.600 to 0.613
+
+### Design Decisions
+- FillTracker caches fill metadata in-memory (`_open_fills` dict) for close-time
+  R-multiple calculation — avoids DB round-trip on every close.
+- R-multiple: LONG = (close-entry)/risk, SHORT = (entry-close)/risk.
+  Risk = |entry - stop_loss|. Zero risk → returns None.
+- TradeOutcomeRecorder is intentionally thin — delegates to PerformanceDatabase.
+  No duplicate DB logic.
+- KellyInputUpdater clears Redis key when segment < 30 (don't serve stale cache).
+- Integration test uses SQLite in-memory + FakeRedis — no external services.
