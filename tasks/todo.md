@@ -632,3 +632,24 @@ Implement three Phase 3 modules:
   level column uses SOFT as a placeholder for reset events.
 - KillSwitch: SQLite tests use StaticPool to share one in-memory DB across
   ORM connections and raw DDL.
+
+---
+
+## Session: 2026-03-24 — Phase 4: Execution Gateway (P4.1)
+
+### Goal
+Implement `src/execution/gateway.py` — MT5 order execution with pre-flight
+checks and paper trading mode. Only reached after RiskDecision = APPROVE.
+
+### Checklist
+- [ ] Implement `ExecutionGateway` in `src/execution/gateway.py`
+  - [ ] Pre-flight checks: kill switch, decision APPROVE, size > 0, prices valid, freshness < 2s
+  - [ ] Volume calculation: round(final_size × equity / 100000, 2), clamp [0.01, 100.0]
+  - [ ] Use mt5.symbol_info_tick(pair).ask for LONG, .bid for SHORT
+  - [ ] Live mode: mt5.order_send(), check TRADE_RETCODE_DONE
+  - [ ] Paper mode: skip order_send, simulate fill at current ask/bid, slippage=0
+  - [ ] Return FillRecord dataclass on success, None on rejection/failure
+  - [ ] structlog for every decision path
+- [ ] Write unit tests — pre-flight rejections, volume calc, live/paper, retcode handling
+- [ ] Run all tests — 493 existing + new gateway tests all pass
+- [ ] Update todo.md with review
