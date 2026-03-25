@@ -816,3 +816,45 @@ Supports filtering by strategy, regime, session, pair, and date range.
 ### /risk-verify Result
 All 5 Section 7 formulas verified PASS. Reporting module delegates all stats
 to empyrical — no Section 7 formulas are reimplemented or at risk of drift.
+
+---
+
+## Session: 2026-03-25 — Pipeline Orchestrator + 7-C Paper Trading (P5.4)
+
+### Goal
+Implement `src/pipeline.py` — the production pipeline orchestrator connecting
+all 18 modules. Then run 7-C paper trading validation.
+
+### Eng Review Decisions (locked in)
+1. ZMQ only in live loop; tests/simulation call process_tick() directly
+2. Paper SL/TP tracking in pipeline-level dict, no FillTracker changes
+3. Exception→EMERGENCY covered by existing chaos tests
+4. Add incrementing counter to gateway._paper_fill() for unique order IDs
+5. Simulation uses wall-clock approval timestamps
+6. Win rate measured honestly; report diagnosis if <48%
+
+### Checklist
+- [x] Add paper ticket counter to `src/execution/gateway.py` (~5 lines)
+- [x] Implement `src/pipeline.py` (~300 lines)
+  - [x] PipelineContext dataclass
+  - [x] load_settings() — parse config/settings.yaml
+  - [x] init_context() — DI container with optional session_factory/redis_client
+  - [x] process_tick() — core pipeline logic (one tick)
+  - [x] _check_paper_closes() — SL/TP hit detection
+  - [x] _async_main() — live ZMQ PULL loop + background tasks
+  - [x] main() — sync entry point (asyncio.run)
+- [x] Write `tests/integration/test_pipeline.py` (~350 lines)
+  - [x] test_init_context_constructs_all
+  - [x] test_undefined_skips
+  - [x] test_kill_switch_blocks
+  - [x] test_calibration_rejects_no_segment
+  - [x] test_sl_hit_closes_long
+  - [x] test_tp_hit_closes_long
+  - [x] test_sl_hit_closes_short
+  - [x] test_signal_fill_close_update (full feedback cycle)
+- [x] All tests pass (600 total: 592 existing + 8 new)
+- [x] Write `scripts/paper_sim.py` (~280 lines)
+- [x] Run 7-C simulation — GATE PASSED
+  - 0 crashes, 0 state drift
+  - 120 trades, 67.5% win rate (>= 48%)
+- [ ] Commit: `feat: pipeline orchestrator + 7-C validation (P5.4-P5.5)`

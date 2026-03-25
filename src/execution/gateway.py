@@ -88,6 +88,8 @@ class ExecutionGateway:
         When True, skip ``mt5.order_send()`` and simulate fills.
     """
 
+    _paper_ticket: int = 900_000
+
     def __init__(
         self,
         mt5_client: MT5Client,
@@ -315,7 +317,8 @@ class ExecutionGateway:
         based on the current timestamp.
         """
         fill_ts = int(time.time() * 1000)
-        order_id = fill_ts  # synthetic ticket
+        order_id = ExecutionGateway._paper_ticket
+        ExecutionGateway._paper_ticket += 1
 
         logger.info(
             "PAPER TRADE",
