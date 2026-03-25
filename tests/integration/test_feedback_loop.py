@@ -1,7 +1,8 @@
-"""Integration test: full feedback cycle.
+"""Integration test: full Phase 4 feedback cycle (P4.1–P4.5).
 
 Proves end-to-end:
-  fill → FillTracker → TradeOutcomeRecorder → KellyInputUpdater → CalibrationEngine
+  fill → FillTracker → TradeOutcomeRecorder → KellyInputUpdater
+  → CalibrationEngine reads updated stats → PerformanceReporter sees all trades
 
 Scenario:
   1. Seed 30 trades into a segment (minimum for calibration)
@@ -11,6 +12,7 @@ Scenario:
   5. TradeOutcomeRecorder persists outcome → now 31 trades
   6. KellyInputUpdater recalculates segment → caches to Redis
   7. CalibrationEngine reads UPDATED stats (win_rate changed)
+  8. PerformanceReporter computes stats over all 31 trades (P4.5)
 
 Uses SQLite in-memory DB + mock Redis — no external services required.
 """
@@ -19,6 +21,8 @@ from __future__ import annotations
 import json
 import time
 from datetime import datetime, timedelta, timezone
+
+import numpy as np
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -37,6 +41,7 @@ from src.market.schemas import (
     Strategy,
     TradingSession,
 )
+from src.reporting.performance import PerformanceReporter
 
 
 # ── SQLite setup ─────────────────────────────────────────────────────────
@@ -241,3 +246,32 @@ class TestFeedbackLoop:
         # Win rate changed: was 18/30 = 0.600, now 19/31 ≈ 0.6129
         assert intent_after.p_win != intent_before.p_win
         assert abs(intent_after.p_win - 19 / 31) < 0.01
+
+        # ── Step 8: PerformanceReporter sees all 31 trades (P4.5) ──
+        reporter = PerformanceReporter(session_factory=sf, risk_fraction=0.01)
+        stats = reporter.get_stats()
+        assert stats is not None
+        assert stats["total_trades"] == 31
+        assert stats["winning_trades"] == 19
+        assert stats["losing_trades"] == 12
+        assert abs(stats["win_rate"] - 19 / 31) < 0.01
+
+        # Sharpe computed from daily returns — must be finite.
+        assert np.isfinite(stats["sharpe_ratio"])
+        # Max drawdown is non-positive.
+        assert stats["max_drawdown"] <= 0
+
+        # Equity curve starts near 1.0 and has correct length.
+        equity = reporter.get_equity_curve()
+        assert equity is not None
+        assert len(equity) >= 1
+        assert equity.iloc[0] > 0  # started at 1.0 + first day return
+
+        # Filtered stats: only MOMENTUM trades → same 31 trades.
+        filtered = reporter.get_stats(strategy="MOMENTUM")
+        assert filtered is not None
+        assert filtered["total_trades"] == 31
+
+        # Different strategy filter → no trades → None.
+        empty = reporter.get_stats(strategy="MEAN_REVERSION")
+        assert empty is None

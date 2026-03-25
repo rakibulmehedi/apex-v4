@@ -764,3 +764,55 @@ at natural callsites.
 - Latency measured at `gateway.execute()` entry to fill (eng review decision 1B)
 - 7d win rate computed in `PerformanceDatabase.get_7d_win_rate()`, set in updater (eng review 2A)
 - Delta-based test approach: existing test files' metric tests deferred to next session (3A partial)
+
+---
+
+## Session: 2026-03-25 — pyfolio Performance Reporting (P4.5)
+
+### Goal
+Build the performance reporting module using pyfolio-reloaded. Queries
+trade_outcomes from PostgreSQL, converts to daily returns, generates
+full tearsheet metrics (Sharpe, max drawdown, monthly returns, rolling stats).
+Supports filtering by strategy, regime, session, pair, and date range.
+
+### Checklist
+- [x] Create `src/reporting/__init__.py`
+- [x] Create `src/reporting/performance.py` — `PerformanceReporter` class
+  - [x] `_query_outcomes()` — fetch trade_outcomes with optional filters
+  - [x] `_outcomes_to_returns()` — convert R-multiples to daily return Series
+  - [x] `get_stats()` — dict of key metrics (Sharpe, max DD, CAGR, win rate, etc.)
+  - [x] `generate_tearsheet()` — save pyfolio tearsheet PNG to disk
+  - [x] `get_monthly_returns()` — monthly returns DataFrame
+  - [x] `get_rolling_sharpe()` — rolling Sharpe ratio Series
+  - [x] `get_equity_curve()` — cumulative returns (bonus)
+- [x] Write `tests/unit/test_performance.py` — 26 tests, all pass
+- [x] Run all tests — 592/592 pass, zero regressions
+- [x] Run /risk-verify — all 5 Section 7 formulas PASS, no deviations
+
+### Review — 2026-03-25
+
+**Status: COMPLETE** — 26 new tests, 592/592 total pass.
+
+### PerformanceReporter API
+| Method | Returns | Description |
+|---|---|---|
+| `get_stats(**filters)` | `dict \| None` | Sharpe, Sortino, max DD, CAGR, Calmar, win rate, profit factor, etc. |
+| `get_monthly_returns(**filters)` | `DataFrame \| None` | Year × month aggregate return table |
+| `get_rolling_sharpe(window, **filters)` | `Series \| None` | Rolling Sharpe ratio (default 63 bday) |
+| `get_equity_curve(**filters)` | `Series \| None` | Cumulative returns starting at 1.0 |
+| `generate_tearsheet(output_dir, filename, **filters)` | `Path \| None` | pyfolio returns tearsheet PNG |
+
+### Filters (all optional)
+`strategy`, `regime`, `session`, `pair`, `start` (datetime), `end` (datetime)
+
+### Design Decisions
+- R-multiple → daily return via configurable `risk_fraction` (default 1%)
+- Multiple trades/day summed; gap days filled with 0.0
+- Minimum 5 trades required for any stats (guards against noisy metrics)
+- NumPy 2.0 compat shim for empyrical-reloaded (`np.NINF` / `np.PINF` removed)
+- Matplotlib "Agg" backend — headless, no GUI dependency
+- All empyrical calls — no Section 7 formulas reimplemented in this module
+
+### /risk-verify Result
+All 5 Section 7 formulas verified PASS. Reporting module delegates all stats
+to empyrical — no Section 7 formulas are reimplemented or at risk of drift.
