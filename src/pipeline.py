@@ -98,6 +98,7 @@ def load_settings(path: str | Path = "config/settings.yaml") -> dict[str, Any]:
 
 _RED = "\033[91m"
 _GREEN = "\033[92m"
+_YELLOW = "\033[93m"
 _BOLD = "\033[1m"
 _RESET = "\033[0m"
 
@@ -108,6 +109,10 @@ def _red(msg: str) -> str:
 
 def _green(msg: str) -> str:
     return f"{_GREEN}{msg}{_RESET}"
+
+
+def _yellow(msg: str) -> str:
+    return f"{_YELLOW}{msg}{_RESET}"
 
 
 def _bold(msg: str) -> str:
@@ -471,7 +476,11 @@ def run_preflight(
     secrets_path: str | Path = "config/secrets.env",
     _input_fn: Any = None,
 ) -> float:
-    """Run all 10 pre-flight checks. Block startup on any failure.
+    """Run 9 pre-flight checks with paper trading bypass for checks 8-9.
+
+    Checks 1-7 are hard requirements — any failure blocks startup.
+    Checks 8-9 (V3 data imported, segment counts) are bypassed in paper
+    mode with a yellow warning; in live mode they block startup.
 
     Parameters
     ----------
@@ -492,49 +501,85 @@ def run_preflight(
     Raises
     ------
     SystemExit
-        If any check fails or the operator does not confirm.
+        If any hard check fails, or bypassable checks fail in live mode,
+        or the operator does not confirm.
     """
     if session_factory is None:
         session_factory = make_session_factory()
 
     prompt_input = _input_fn or input
+    trading_mode = settings.get("system", {}).get("mode", "paper")
 
-    results: list[PreflightResult] = [
-        _check_v3_data_imported(session_factory),
-        _check_segment_counts(session_factory),
-        _check_kill_switch(session_factory),
-        _check_redis(settings),
-        _check_postgres(session_factory),
-        _check_mt5(settings),
-        _check_paper_duration(session_factory),
-        _check_no_state_drift(session_factory),
-        _check_capital_allocation(settings),
-        _check_secrets_env(secrets_path),
+    # Checks 1-7: hard requirements (any failure blocks startup)
+    hard_checks: list[PreflightResult] = [
+        _check_redis(settings),                      # 1
+        _check_postgres(session_factory),             # 2
+        _check_mt5(settings),                         # 3
+        _check_kill_switch(session_factory),          # 4
+        _check_no_state_drift(session_factory),       # 5
+        _check_capital_allocation(settings),          # 6
+        _check_secrets_env(secrets_path),             # 7
     ]
 
-    failed = [r for r in results if not r.passed]
+    # Checks 8-9: bypassable in paper mode
+    bypassable_checks: list[PreflightResult] = [
+        _check_v3_data_imported(session_factory),     # 8
+        _check_segment_counts(session_factory),       # 9
+    ]
+
+    all_checks = hard_checks + bypassable_checks
+    hard_failed = [r for r in hard_checks if not r.passed]
+    bypass_failed = [r for r in bypassable_checks if not r.passed]
 
     print()
     print(_bold("═══ APEX V4 — Pre-Flight Validation ═══"))
+    print(f"  Trading mode: {_bold(trading_mode)}")
     print()
 
-    for i, r in enumerate(results, 1):
+    for i, r in enumerate(all_checks, 1):
+        is_bypassable = i >= 8
         if r.passed:
             print(f"  {_green('✓')} [{i:02d}] {r.name}: {r.detail}")
+        elif is_bypassable and trading_mode == "paper":
+            print(f"  {_yellow('⚠')} [{i:02d}] {r.name}")
+            print(f"       {_yellow('Why:')} {r.detail}")
+            print(f"       {_yellow('Bypassed:')} paper mode — see warning below")
         else:
             print(f"  {_red('✗')} [{i:02d}] {r.name}")
             print(f"       {_red('Why:')} {r.detail}")
             print(f"       {_red('Fix:')} {r.fix}")
         print()
 
-    if failed:
-        print(_red(_bold(f"BLOCKED — {len(failed)} check(s) failed. Fix them and retry.")))
+    # Hard failures always block
+    if hard_failed:
+        print(_red(_bold(f"BLOCKED — {len(hard_failed)} check(s) failed. Fix them and retry.")))
         print()
         sys.exit(1)
 
-    # ── All passed — operator confirmation ────────────────────────────
+    # Bypassable failures: block in live mode, warn in paper mode
+    if bypass_failed:
+        if trading_mode != "paper":
+            print(_red(_bold(
+                f"BLOCKED — {len(bypass_failed)} data check(s) failed. "
+                "Live mode requires full trade history. Fix them and retry."
+            )))
+            print()
+            sys.exit(1)
+        else:
+            print(_yellow(_bold(
+                "PAPER MODE ENABLED: Insufficient segment history. "
+                "Bootstrapping database natively with default minimum risk."
+            )))
+            print()
+
+    # ── All passed (or bypassed) — operator confirmation ─────────────
     cap_pct = float(settings["risk"]["capital_allocation_pct"])
-    print(_green(_bold("All 10 checks passed.")))
+    passed_count = sum(1 for r in all_checks if r.passed)
+    bypassed_count = len(bypass_failed)
+    if bypassed_count:
+        print(_green(_bold(f"{passed_count} checks passed, {bypassed_count} bypassed (paper mode).")))
+    else:
+        print(_green(_bold("All 9 checks passed.")))
     print()
     print(f"  Confirm startup with capital_allocation_pct = {_bold(str(cap_pct))}")
     print(f'  Type exactly: CONFIRMED {cap_pct}')
@@ -553,7 +598,12 @@ def run_preflight(
         print(_red(f"Expected '{expected}', got '{answer}'. Startup aborted."))
         sys.exit(1)
 
-    logger.info("preflight_passed", capital_allocation_pct=cap_pct)
+    logger.info(
+        "preflight_passed",
+        capital_allocation_pct=cap_pct,
+        trading_mode=trading_mode,
+        bypassed=bypassed_count,
+    )
     return cap_pct
 
 
@@ -594,7 +644,10 @@ def init_context(
         min_conviction=alpha_cfg.get("conviction_threshold", 0.65),
     )
     perf_db = PerformanceDatabase(session_factory=session_factory)
-    cal_engine = CalibrationEngine(perf_db=perf_db)
+    cal_engine = CalibrationEngine(
+        perf_db=perf_db,
+        capital_allocation_pct=risk_cfg.get("capital_allocation_pct", 1.0),
+    )
     covariance = EWMACovarianceMatrix(
         pairs=pairs,
         lambda_=risk_cfg.get("ewma_lambda", 0.999),
@@ -847,7 +900,12 @@ async def _async_main() -> None:
     settings = load_settings()
 
     # ── Pre-flight validation — blocks startup on any failure ─────
-    run_preflight(settings)
+    cap_pct = run_preflight(settings)
+    logger.info(
+        "capital_allocation",
+        pct=cap_pct * 100,
+        msg=f"Capital allocation: {cap_pct * 100:.0f}% of portfolio",
+    )
 
     ctx = init_context(settings)
 

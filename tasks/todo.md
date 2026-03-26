@@ -1,5 +1,77 @@
 # APEX V4 — Active Task Plan
 
+## Session: 2026-03-26 — Capital Allocation + Grafana Dashboard (P6.4)
+
+### Goal
+Two final tasks before tagging v4.0-phase6-ready:
+1. Wire `capital_allocation_pct` into CalibrationEngine so position sizes reflect allocated capital
+2. Create Grafana dashboard JSON for production monitoring
+
+### Checklist
+- [x] TASK 1: Capital allocation
+  - [x] Add `capital_allocation_pct` param to `CalibrationEngine.__init__`
+  - [x] Multiply `final_size` by `capital_allocation_pct` in `calibrate()`
+  - [x] Pass setting from `init_context()` in pipeline.py
+  - [x] Add startup log: "Capital allocation: X% of portfolio"
+  - [x] Add unit tests for capital allocation scaling (4 tests)
+- [x] TASK 2: Grafana dashboard
+  - [x] Create `ops/grafana_dashboard.json` with 9 panels
+- [ ] Tag `v4.0-phase6-ready`
+- [x] Do NOT change `trading_mode` to "live"
+
+---
+
+## Previous: Pre-Flight Paper Trading Bypass (P6.2b)
+
+### Goal
+Refactor `run_preflight()` to implement a "Native Paper Trading Bypass" —
+checks 8-9 (V3 data imported, ADR-002 segment counts) are bypassed in paper
+mode with a yellow warning instead of blocking startup. Live mode still blocks.
+
+### Checklist
+- [x] Add `_YELLOW` ANSI colour helper and `_yellow()` formatter
+- [x] Add `capital_allocation_pct: 0.10` to `config/settings.yaml` under `risk:`
+- [x] Refactor `run_preflight()`:
+  - [x] Exactly 9 checks in spec order (1-7 hard, 8-9 bypassable)
+  - [x] Read `trading_mode` from `system.mode` in settings
+  - [x] Paper mode: checks 8-9 fail → yellow warning, proceed to confirmation
+  - [x] Live mode: checks 8-9 fail → red error, `sys.exit(1)`
+  - [x] Hard checks 1-7: always block on failure regardless of mode
+  - [x] Remove `_check_paper_duration` from check sequence (not in spec)
+  - [x] Display trading mode in banner
+  - [x] Log `trading_mode` and `bypassed` count on success
+- [x] Rewrite `tests/unit/test_preflight.py`:
+  - [x] All 9 individual check tests preserved (32 tests)
+  - [x] 16 `run_preflight()` integration tests covering:
+    - Confirmation flow (pass, wrong, EOF, KeyboardInterrupt)
+    - Hard check failures block in both modes
+    - Paper bypass for checks 8, 9, and both
+    - Live mode blocks on checks 8, 9, and both
+    - Mixed: hard fail + bypass fail → hard takes priority
+    - Missing `system.mode` defaults to paper
+- [x] All 689 tests pass (48 preflight + 641 existing)
+- [x] Zero regressions
+
+### Review
+**Built:** Paper trading bypass for pre-flight validation. The 9 checks run in
+the exact order specified. Checks 1-7 (Redis, PostgreSQL, MT5, kill switch,
+state drift, capital_allocation_pct, secrets.env) are hard requirements that
+always block. Checks 8-9 (V3 data imported, segment counts/ADR-002) are
+bypassed in paper mode with a yellow "PAPER MODE ENABLED: Insufficient segment
+history. Bootstrapping database natively with default minimum risk." warning.
+Live mode blocks on all 9 checks. Operator confirmation ("CONFIRMED <pct>")
+is required in all cases.
+
+**Tests:** 48 tests (32 individual checks + 16 orchestrator integration).
+Net +8 tests vs previous (removed 3 paper_duration tests, added 11 bypass tests).
+
+**Decisions:**
+1. `system.mode` used as `trading_mode` — already exists in settings.yaml, no new key needed
+2. `_check_paper_duration` kept in source (not deleted) but removed from check sequence — out of spec
+3. `capital_allocation_pct: 0.10` added to settings.yaml — was missing, required for check #6
+
+---
+
 ## Session: 2026-03-26 — Pipeline Delta: Metric + Guard + Tests (P6.3)
 
 ### Goal

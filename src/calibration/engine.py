@@ -45,8 +45,13 @@ class CalibrationEngine:
         PerformanceDatabase for segment lookups.
     """
 
-    def __init__(self, perf_db: PerformanceDatabase) -> None:
+    def __init__(
+        self,
+        perf_db: PerformanceDatabase,
+        capital_allocation_pct: float = 1.0,
+    ) -> None:
         self._perf_db = perf_db
+        self._capital_allocation_pct = capital_allocation_pct
 
     # ── public API ─────────────────────────────────────────────────
 
@@ -131,7 +136,7 @@ class CalibrationEngine:
         corr_scalar = self._correlation_scalar(pair, open_positions)
 
         # ── 6. final size ─────────────────────────────────────────
-        final_size = f_final * dd_scalar * corr_scalar
+        final_size = f_final * dd_scalar * corr_scalar * self._capital_allocation_pct
 
         logger.info(
             "calibration_complete",
@@ -147,6 +152,7 @@ class CalibrationEngine:
             f_final=round(f_final, 6),
             dd_scalar=dd_scalar,
             corr_scalar=corr_scalar,
+            capital_allocation_pct=self._capital_allocation_pct,
             final_size=round(final_size, 6),
             trade_count=trade_count,
         )

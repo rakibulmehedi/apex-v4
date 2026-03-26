@@ -43,6 +43,7 @@ regime:
   adx_range_threshold: 22       # adjusted from 20 — backtest P2.8 validation
 
 risk:
+  capital_allocation_pct: 0.10   # 10% of equity allocated to trading
   max_position_size: 0.02        # 2% hard cap
   kelly_fraction: 0.25           # quarter-Kelly
   min_trade_sample: 30           # minimum segment history

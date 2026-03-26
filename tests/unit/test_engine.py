@@ -48,11 +48,15 @@ def _make_hypothesis(
 
 def _make_engine(
     segment_stats: dict | None = None,
+    capital_allocation_pct: float = 1.0,
 ) -> CalibrationEngine:
     """Build engine with a mocked PerformanceDatabase."""
     mock_db = MagicMock()
     mock_db.get_segment_stats.return_value = segment_stats
-    engine = CalibrationEngine(perf_db=mock_db)
+    engine = CalibrationEngine(
+        perf_db=mock_db,
+        capital_allocation_pct=capital_allocation_pct,
+    )
     return engine
 
 
@@ -426,3 +430,43 @@ class TestIntegrationScenario:
         edge = 0.34 * 2.0 - 0.66
         assert result.edge == pytest.approx(edge)
         assert result.edge > 0
+
+
+# ── capital allocation scaling ────────────────────────────────────────
+
+class TestCapitalAllocation:
+    """capital_allocation_pct scales final_size proportionally."""
+
+    def test_default_allocation_is_unity(self):
+        """No capital_allocation_pct → multiplier is 1.0 (no change)."""
+        engine = _make_engine(_default_stats())
+        result = engine.calibrate(_make_hypothesis(), "LONDON", current_dd=0.0)
+        assert result is not None
+        assert result.suggested_size == pytest.approx(0.02)
+
+    def test_ten_percent_allocation(self):
+        """capital_allocation_pct=0.10 scales size by 10%."""
+        engine = _make_engine(_default_stats(), capital_allocation_pct=0.10)
+        result = engine.calibrate(_make_hypothesis(), "LONDON", current_dd=0.0)
+        assert result is not None
+        # f_final=0.02, dd=1.0, corr=1.0, cap=0.10
+        assert result.suggested_size == pytest.approx(0.02 * 0.10)
+
+    def test_allocation_stacks_with_dd_and_corr(self):
+        """All three scalars multiply: dd=0.5, corr=0.5, cap=0.10."""
+        engine = _make_engine(_default_stats(), capital_allocation_pct=0.10)
+        positions = [{"pair": "EURGBP"}, {"pair": "EURJPY"}]
+        result = engine.calibrate(
+            _make_hypothesis(), "LONDON", current_dd=0.03,
+            open_positions=positions,
+        )
+        assert result is not None
+        # f_final=0.02, dd=0.5, corr=0.5, cap=0.10
+        assert result.suggested_size == pytest.approx(0.02 * 0.5 * 0.5 * 0.10)
+
+    def test_full_allocation(self):
+        """capital_allocation_pct=1.0 is equivalent to no scaling."""
+        engine = _make_engine(_default_stats(), capital_allocation_pct=1.0)
+        result = engine.calibrate(_make_hypothesis(), "LONDON", current_dd=0.0)
+        assert result is not None
+        assert result.suggested_size == pytest.approx(0.02)
