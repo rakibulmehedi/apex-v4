@@ -16,8 +16,27 @@ Two final tasks before tagging v4.0-phase6-ready:
   - [x] Add unit tests for capital allocation scaling (4 tests)
 - [x] TASK 2: Grafana dashboard
   - [x] Create `ops/grafana_dashboard.json` with 9 panels
-- [ ] Tag `v4.0-phase6-ready`
+- [x] Tag `v4.0-phase6-ready`
 - [x] Do NOT change `trading_mode` to "live"
+
+---
+
+## Session: 2026-03-27 — Modular Commit & Finalization
+
+### Goal
+Commit all Phase 6 changes modularly, update .gitignore, and provide final playbook.
+
+### Checklist
+- [x] Update `.gitignore` to ignore `data/` directory
+- [x] Commit pipeline hardening and DI fixes
+- [x] Commit pre-flight refactor and bypass logic
+- [x] Add `APEX_V4_CLI_PLAYBOOK_1.md`
+- [x] Finalize `tasks/todo.md` and `tasks/lessons.md`
+
+**Status: COMPLETE**
+- 5 modular commits applied
+- Working tree clean
+- Documentation updated
 
 ---
 
