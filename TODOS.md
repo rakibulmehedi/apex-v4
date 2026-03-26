@@ -18,3 +18,12 @@
 - **Context:** Critical for production safety. A trading system that silently breaches risk limits is worse than one with no metrics at all.
 - **Depends on:** Grafana dashboard + Phase 5 metrics implementation.
 - **Added:** 2026-03-25 via /plan-eng-review
+
+### Async timeout on governor.evaluate()
+- **What:** Wrap `governor.evaluate()` call in `asyncio.wait_for()` with a configurable timeout (e.g., 10s).
+- **Why:** If MT5 or Redis hangs during risk evaluation, the main pipeline loop blocks indefinitely. The reconciler catches full MT5 disconnects but not slow responses (e.g., 30s Redis latency).
+- **Pros:** Prevents silent pipeline stalls; tick gets skipped with a logged warning instead of hanging.
+- **Cons:** Minimal — just an `asyncio.wait_for` wrapper + timeout config in settings.yaml.
+- **Context:** Pre-existing issue, not introduced by pipeline delta. The reconciler's 5s heartbeat provides a partial safety net for full disconnects, but not for slow responses. Low probability but high impact in production.
+- **Depends on:** None (can be done independently).
+- **Added:** 2026-03-26 via /plan-eng-review

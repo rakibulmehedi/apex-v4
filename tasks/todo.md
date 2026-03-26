@@ -1,5 +1,145 @@
 # APEX V4 — Active Task Plan
 
+## Session: 2026-03-26 — Pipeline Delta: Metric + Guard + Tests (P6.3)
+
+### Goal
+Harden the existing pipeline orchestrator with a cycle duration metric,
+an account_info None guard, and 7 new integration tests covering all
+untested code paths. Scope reduced per eng review — no regime routing
+change, no rename.
+
+### Context
+The main trading loop already exists (P5.4-P5.5, commit ea6c9e7):
+- `_async_main()` — async orchestrator with ZMQ PULL, shutdown, kill switch
+- `process_tick()` — full pipeline: features → regime → alpha → calibrate → risk → execute → fill
+- `init_context()` — builds all 18 components with DI
+- 674 tests passing
+
+Eng review found 2 code changes + 7 test gaps. Outside voice (Claude subagent)
+challenged explicit regime routing and rename — both dropped as unnecessary risk.
+
+### Data flow (unchanged, for reference)
+```
+MarketFeed ──ZMQ PUSH──→ _async_main() ──ZMQ PULL──→ process_tick()
+                                                        │
+    ┌───────────────────────────────────────────────────┘
+    │
+    ├─ Gate 0: kill_switch.is_active? → return
+    ├─ Step 1: fabric.compute(snapshot) → FeatureVector
+    ├─ Step 2: classifier.classify(fv) → Regime
+    ├─ Step 3: _check_paper_closes(snapshot)
+    ├─ Step 4: UNDEFINED → return
+    ├─ Step 5: momentum.generate() + mr.generate() → hypotheses
+    ├─ Step 6: mt5.account_info() → equity/balance  ← NEW: None guard
+    ├─ Step 7: For each hypothesis:
+    │    ├─ cal_engine.calibrate() → CalibratedTradeIntent
+    │    ├─ governor.evaluate() → RiskDecision
+    │    ├─ gateway.execute() → FillRecord
+    │    └─ fill_tracker.record_fill()
+    └─ Paper close detection → recorder → updater
+```
+
+### Checklist
+
+**Code changes:**
+- [x] Add `APEX_CYCLE_DURATION_MS` Histogram to `src/observability/metrics.py`
+      Buckets: (10, 50, 100, 200, 500, 1000, 2000) ms
+- [x] Observe `APEX_CYCLE_DURATION_MS` in `_async_main()` around `process_tick()`
+      (wall-clock from message arrival to processing completion, not just compute)
+- [x] Add None guard on `account_info()` in `process_tick()`:
+      if None → `logger.warning("tick_skipped", reason="account_info_unavailable")` + return
+      (Verified: StubMT5Client.account_info() returns valid data after init — paper mode safe)
+
+**Tests (all in `tests/integration/test_pipeline.py`):**
+- [x] Test: ValueError from fabric.compute() → tick skipped, no fills
+- [x] Test: Both alpha engines return None → no governor.evaluate() called
+- [x] Test: None from account_info() → tick skipped, no calibration
+- [x] Test: Governor rejects → no gateway.execute() called
+- [x] Test: Gateway returns None → no fill_tracker.record_fill() called
+- [x] Test: SIGTERM triggers graceful shutdown (mock is_shutting_down, verify cleanup)
+- [x] Test: Unhandled exception triggers EMERGENCY kill switch + sys.exit(1)
+
+**Verification:**
+- [x] All existing 674 tests still pass (no regressions)
+- [x] New tests pass
+- [x] Total test count = 681 ✓
+
+### NOT in scope
+- Explicit regime routing — dropped per outside voice (self-filtering is simpler, validated)
+- Rename _async_main → run_pipeline — dropped (zero value, nonzero risk)
+- governor.evaluate() async timeout — deferred to TODOS.md
+- Grafana dashboard for new metric — deferred to TODOS.md
+- Alertmanager rules — deferred to TODOS.md
+
+### Eng review decisions
+1. **Scope:** Build on existing (Option A) — not rewrite
+2. **Regime routing:** Dropped per outside voice — self-filtering already correct
+3. **Account guard:** Skip tick on None (Option A) — "Broker is Truth"
+4. **Tests:** All in test_pipeline.py (Option A) — one file, one mental model
+5. **Rename:** Dropped per outside voice — pure cost, zero value
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
+| Codex Review | `/codex review` | Independent 2nd opinion | 2 | issues_found | Outside voice challenged routing + rename |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 3 | CLEAR | 1 issue (account guard), 0 critical gaps |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
+
+- **CROSS-MODEL:** Claude review recommended explicit routing; outside voice challenged it (measure first). User sided with outside voice — routing dropped.
+- **UNRESOLVED:** 0
+- **VERDICT:** ENG CLEARED — ready to implement.
+
+---
+
+## Session: 2026-03-25 — Startup Pre-Flight Validation (P6.2)
+
+### Goal
+Implement `run_preflight()` in `src/pipeline.py` — 10 mandatory checks before
+the trading loop starts. Any failure blocks startup with red diagnostics + fix steps.
+All pass → green summary → operator types "CONFIRMED <capital_allocation_pct>" to proceed.
+
+### Checklist
+- [x] Implement `run_preflight()` with 10 checks
+- [x] Wire into `_async_main()` before the main loop
+- [x] Write 40 unit tests (all 10 checks pass/fail, confirmation flow)
+- [x] All 674 tests pass (including 40 new preflight tests)
+
+---
+
+## Session: 2026-03-25 — V3 Data Migration (P6.1)
+
+### Goal
+Implement `scripts/migrate_v3_data.py` to import V3 paper trade history into
+V4 `trade_outcomes` table, seeding segment data for go-live.
+
+### Checklist
+- [x] Explore V3 codebase: locate trade log files, schema, regime/strategy labels
+- [x] Read V4 `trade_outcomes` schema, session classifier, enums
+- [x] Implement `scripts/migrate_v3_data.py`:
+  - [x] Load from Redis (`apex:paper_trades`) with fallback
+  - [x] Load from JSON files (`data/paper_trades.json`, `data/output/paper_trades.json`)
+  - [x] Deduplicate by paper_id across sources
+  - [x] Optional enrichment from V3 PostgreSQL `signals` table
+  - [x] Map strategy: TREND_CONTINUATION/LIQUIDITY_SWEEP_REVERSAL→MOMENTUM, MEAN_REVERSION→MEAN_REVERSION, fallback heuristic
+  - [x] Map regime: TRENDING+LONG→TRENDING_UP, TRENDING+SHORT→TRENDING_DOWN, RANGING→RANGING, else→UNDEFINED
+  - [x] Session from `opened_at` UTC hour (mirrors `feed.py`)
+  - [x] Direction-aware r_multiple: LONG=(exit−entry)/risk, SHORT=(entry−exit)/risk
+  - [x] won = r_multiple > 0, mode = "v3_historical"
+  - [x] Segment breakdown: strategy × regime × session with < 30 flagged red
+  - [x] Bulk insert via `PerformanceDatabase.bootstrap_from_v3()`
+  - [x] `--dry-run` flag for preview without DB write
+- [x] Write 34 unit tests covering all mapping paths
+- [x] All 634 tests pass (including 34 new migration tests)
+
+### Notes
+- V3 paper_trades.json files currently empty on macOS dev machine — trades are in Redis on prod Windows VPS
+- V3 paper trades do NOT store strategy or regime; these come from V3 PostgreSQL `signals` table via optional enrichment
+- When V3 DB unavailable, heuristic inference: RANGING regime → MEAN_REVERSION, else MOMENTUM; no regime → UNDEFINED
+
+---
+
 ## Session: 2026-03-21 — Scaffold & Environment Setup
 
 ### Goal
