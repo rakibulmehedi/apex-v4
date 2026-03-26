@@ -60,14 +60,14 @@ class TestMetricDefinitions:
         assert list(metrics.R_MULTIPLE._upper_bounds) == [-3, -2, -1, 0, 1, 2, 3, 5, float("inf")]
 
     def test_metric_count(self) -> None:
-        """All 14 metrics are defined (6 counters + 5 gauges + 3 histograms)."""
+        """All 15 metrics are defined (6 counters + 5 gauges + 4 histograms)."""
         from prometheus_client import Counter, Gauge, Histogram
 
         module_metrics = [
             v for v in vars(metrics).values()
             if isinstance(v, (Counter, Gauge, Histogram))
         ]
-        assert len(module_metrics) == 14
+        assert len(module_metrics) == 15
 
 
 # ── server startup ─────────────────────────────────────────────────────

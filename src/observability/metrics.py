@@ -105,6 +105,12 @@ R_MULTIPLE = Histogram(
     buckets=(-3, -2, -1, 0, 1, 2, 3, 5),
 )
 
+CYCLE_DURATION_MS = Histogram(
+    "apex_cycle_duration_ms",
+    "Wall-clock time for one pipeline cycle (message arrival to processing complete)",
+    buckets=(10, 50, 100, 200, 500, 1000, 2000),
+)
+
 
 # ── server startup ────────────────────────────────────────────────────
 

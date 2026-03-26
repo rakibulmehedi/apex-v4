@@ -1,4 +1,4 @@
-"""Integration test: pipeline orchestrator (P5.4).
+"""Integration test: pipeline orchestrator (P5.4 + P6.3).
 
 Validates the full pipeline: snapshot → features → regime → alpha
 → calibration → risk → execution → fill tracking → feedback loop.
@@ -12,7 +12,7 @@ import asyncio
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -22,21 +22,28 @@ from sqlalchemy.pool import StaticPool
 from src.calibration.engine import CalibrationEngine
 from src.calibration.history import PerformanceDatabase
 from src.execution.fill_tracker import FillTracker
-from src.execution.gateway import ExecutionGateway
+from src.execution.gateway import ExecutionGateway, FillRecord
 from src.features.fabric import FeatureFabric
 from src.features.state import RedisStateManager, PostgresWriter
 from src.learning.recorder import TradeOutcomeRecorder
 from src.learning.updater import KellyInputUpdater
 from src.market.mt5_stub import StubMT5Client
 from src.market.schemas import (
+    AlphaHypothesis,
     CandleMap,
+    Decision,
+    Direction,
     MarketSnapshot,
     OHLCV,
     Regime,
+    RiskDecision,
+    RiskState,
+    Strategy,
     TradingSession,
 )
 from src.pipeline import (
     PipelineContext,
+    _async_main,
     _check_paper_closes,
     init_context,
     load_settings,
@@ -519,3 +526,250 @@ class TestFullFeedbackCycle:
         stats = ctx.perf_db.get_segment_stats("MOMENTUM", "TRENDING_UP", "LONDON")
         assert stats is not None
         assert stats["trade_count"] == 31  # 30 seeded + 1 new
+
+
+# ── P6.3 Tests: Pipeline hardening ─────────────────────────────────────
+
+
+class TestFabricValueError:
+    @pytest.mark.asyncio
+    async def test_fabric_valueerror_skips_tick(self):
+        """ValueError from fabric.compute() → tick skipped, no fills."""
+        sf = _make_sqlite_sf()
+        redis = FakeRedis()
+        ctx = _build_ctx(sf, redis)
+        _seed_trades(sf)
+
+        snap = _snapshot(_trending_candles(200))
+
+        with patch.object(ctx.fabric, "compute", side_effect=ValueError("not enough candles")):
+            await process_tick(snap, ctx, approval_timestamp_ms=int(time.time() * 1000))
+
+        assert len(ctx.fill_tracker._open_fills) == 0
+        assert len(ctx.paper_positions) == 0
+
+
+class TestAlphaEnginesNone:
+    @pytest.mark.asyncio
+    async def test_both_engines_none_skips_risk(self):
+        """Both alpha engines return None → no governor.evaluate() called."""
+        sf = _make_sqlite_sf()
+        redis = FakeRedis()
+        ctx = _build_ctx(sf, redis)
+        _seed_trades(sf)
+
+        snap = _snapshot(_trending_candles(200))
+
+        with patch.object(ctx.momentum, "generate", return_value=None), \
+             patch.object(ctx.mr, "generate", return_value=None), \
+             patch.object(ctx.governor, "evaluate", new_callable=AsyncMock) as mock_eval:
+            await process_tick(snap, ctx, approval_timestamp_ms=int(time.time() * 1000))
+
+        mock_eval.assert_not_called()
+
+
+class TestAccountInfoNone:
+    @pytest.mark.asyncio
+    async def test_none_account_skips_tick(self):
+        """account_info() returns None → tick skipped, no calibration."""
+        sf = _make_sqlite_sf()
+        redis = FakeRedis()
+        ctx = _build_ctx(sf, redis)
+        _seed_trades(sf)
+
+        # Build a hypothesis so we reach step 6
+        hyp = AlphaHypothesis(
+            strategy=Strategy.MOMENTUM,
+            pair="EURUSD",
+            direction=Direction.LONG,
+            entry_zone=(1.0800, 1.0810),
+            stop_loss=1.0750,
+            take_profit=1.0900,
+            setup_score=20,
+            expected_R=2.0,
+            regime=Regime.TRENDING_UP,
+        )
+
+        snap = _snapshot(_trending_candles(200))
+
+        with patch.object(ctx.momentum, "generate", return_value=hyp), \
+             patch.object(ctx.mr, "generate", return_value=None), \
+             patch.object(ctx.mt5, "account_info", return_value=None), \
+             patch.object(ctx.cal_engine, "calibrate") as mock_cal:
+            await process_tick(snap, ctx, approval_timestamp_ms=int(time.time() * 1000))
+
+        mock_cal.assert_not_called()
+
+
+class TestGovernorRejects:
+    @pytest.mark.asyncio
+    async def test_governor_reject_no_execution(self):
+        """Governor REJECT → no gateway.execute() called."""
+        sf = _make_sqlite_sf()
+        redis = FakeRedis()
+        ctx = _build_ctx(sf, redis)
+        _seed_trades(sf)
+
+        hyp = AlphaHypothesis(
+            strategy=Strategy.MOMENTUM,
+            pair="EURUSD",
+            direction=Direction.LONG,
+            entry_zone=(1.0800, 1.0810),
+            stop_loss=1.0750,
+            take_profit=1.0900,
+            setup_score=20,
+            expected_R=2.0,
+            regime=Regime.TRENDING_UP,
+        )
+        reject_decision = RiskDecision(
+            decision=Decision.REJECT,
+            final_size=0.0,
+            reason="test_rejection",
+            risk_state=RiskState.NORMAL,
+            gate_failed=1,
+        )
+
+        snap = _snapshot(_trending_candles(200))
+
+        with patch.object(ctx.momentum, "generate", return_value=hyp), \
+             patch.object(ctx.mr, "generate", return_value=None), \
+             patch.object(ctx.cal_engine, "calibrate", return_value=MagicMock()), \
+             patch.object(ctx.governor, "evaluate", new_callable=AsyncMock, return_value=reject_decision), \
+             patch.object(ctx.gateway, "execute") as mock_exec:
+            await process_tick(snap, ctx, approval_timestamp_ms=int(time.time() * 1000))
+
+        mock_exec.assert_not_called()
+
+
+class TestGatewayNone:
+    @pytest.mark.asyncio
+    async def test_gateway_none_no_fill_record(self):
+        """Gateway returns None → no fill_tracker.record_fill() called."""
+        sf = _make_sqlite_sf()
+        redis = FakeRedis()
+        ctx = _build_ctx(sf, redis)
+        _seed_trades(sf)
+
+        hyp = AlphaHypothesis(
+            strategy=Strategy.MOMENTUM,
+            pair="EURUSD",
+            direction=Direction.LONG,
+            entry_zone=(1.0800, 1.0810),
+            stop_loss=1.0750,
+            take_profit=1.0900,
+            setup_score=20,
+            expected_R=2.0,
+            regime=Regime.TRENDING_UP,
+        )
+        approve_decision = RiskDecision(
+            decision=Decision.APPROVE,
+            final_size=0.01,
+            reason="all_gates_passed",
+            risk_state=RiskState.NORMAL,
+        )
+
+        snap = _snapshot(_trending_candles(200))
+
+        with patch.object(ctx.momentum, "generate", return_value=hyp), \
+             patch.object(ctx.mr, "generate", return_value=None), \
+             patch.object(ctx.cal_engine, "calibrate", return_value=MagicMock()), \
+             patch.object(ctx.governor, "evaluate", new_callable=AsyncMock, return_value=approve_decision), \
+             patch.object(ctx.gateway, "execute", return_value=None), \
+             patch.object(ctx.fill_tracker, "record_fill") as mock_record:
+            await process_tick(snap, ctx, approval_timestamp_ms=int(time.time() * 1000))
+
+        mock_record.assert_not_called()
+
+
+class TestGracefulShutdown:
+    @pytest.mark.asyncio
+    async def test_sigterm_triggers_graceful_shutdown(self):
+        """is_shutting_down() → loop exits, cleanup runs (feed cancelled, MT5 closed)."""
+        call_count = 0
+
+        def mock_is_shutting_down():
+            nonlocal call_count
+            call_count += 1
+            # Let the loop run once, then signal shutdown
+            return call_count > 1
+
+        with patch("src.pipeline.load_settings", return_value={
+                "system": {"mode": "paper"},
+                "mt5": {"mode": "stub", "pairs": ["EURUSD"]},
+                "prometheus": {"port": 0},
+            }), \
+             patch("src.pipeline.run_preflight"), \
+             patch("src.pipeline.init_context") as mock_init, \
+             patch("src.pipeline.start_metrics_server"), \
+             patch("ops.apex_wrapper.is_shutting_down", side_effect=mock_is_shutting_down), \
+             patch("zmq.asyncio.Context") as mock_zmq_ctx:
+
+            # Set up mock context
+            mock_ctx = MagicMock()
+            mock_ctx.kill_switch.recover_from_db = AsyncMock()
+            mock_ctx.kill_switch.is_active = False
+            mock_ctx.feed.run = AsyncMock()
+            mock_ctx.reconciler.run = AsyncMock()
+            mock_ctx.reconciler.stop = MagicMock()
+            mock_ctx.mt5.shutdown = MagicMock()
+            mock_ctx.mt5.symbol_info_tick = MagicMock(return_value=None)
+            mock_ctx.paper_positions = {}
+            mock_init.return_value = mock_ctx
+
+            # Mock ZMQ socket — poll returns no events so loop just checks shutdown
+            mock_sock = MagicMock()
+            mock_sock.poll = AsyncMock(return_value=0)
+            mock_sock.close = MagicMock()
+            mock_zmq_ctx.return_value.socket.return_value = mock_sock
+            mock_zmq_ctx.return_value.term = MagicMock()
+
+            await _async_main()
+
+            # Verify cleanup ran
+            mock_ctx.reconciler.stop.assert_called_once()
+            mock_ctx.mt5.shutdown.assert_called_once()
+            mock_sock.close.assert_called_once()
+
+
+class TestUnhandledException:
+    @pytest.mark.asyncio
+    async def test_exception_triggers_emergency_kill_switch(self):
+        """Unhandled exception → EMERGENCY kill switch + sys.exit(1)."""
+        with patch("src.pipeline.load_settings", return_value={
+                "system": {"mode": "paper"},
+                "mt5": {"mode": "stub", "pairs": ["EURUSD"]},
+                "prometheus": {"port": 0},
+            }), \
+             patch("src.pipeline.run_preflight"), \
+             patch("src.pipeline.init_context") as mock_init, \
+             patch("src.pipeline.start_metrics_server"), \
+             patch("ops.apex_wrapper.is_shutting_down", return_value=False), \
+             patch("zmq.asyncio.Context") as mock_zmq_ctx:
+
+            # Set up mock context
+            mock_ctx = MagicMock()
+            mock_ctx.kill_switch.recover_from_db = AsyncMock()
+            mock_ctx.kill_switch.trigger = AsyncMock()
+            mock_ctx.feed.run = AsyncMock()
+            mock_ctx.reconciler.run = AsyncMock()
+            mock_ctx.reconciler.stop = MagicMock()
+            mock_ctx.mt5.shutdown = MagicMock()
+            mock_ctx.mt5.symbol_info_tick = MagicMock(return_value=None)
+            mock_ctx.paper_positions = {}
+            mock_init.return_value = mock_ctx
+
+            # Mock ZMQ socket — recv raises an exception
+            mock_sock = MagicMock()
+            mock_sock.poll = AsyncMock(return_value=1)
+            mock_sock.recv_string = AsyncMock(side_effect=RuntimeError("ZMQ exploded"))
+            mock_sock.close = MagicMock()
+            mock_zmq_ctx.return_value.socket.return_value = mock_sock
+            mock_zmq_ctx.return_value.term = MagicMock()
+
+            with pytest.raises(SystemExit) as exc_info:
+                await _async_main()
+
+            assert exc_info.value.code == 1
+            mock_ctx.kill_switch.trigger.assert_awaited_once_with(
+                "EMERGENCY", "unhandled exception in pipeline"
+            )
