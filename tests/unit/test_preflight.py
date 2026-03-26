@@ -19,7 +19,6 @@ from src.pipeline import (
     _check_kill_switch,
     _check_mt5,
     _check_no_state_drift,
-    _check_paper_duration,
     _check_postgres,
     _check_redis,
     _check_secrets_env,
@@ -76,7 +75,7 @@ CREATE TABLE reconciliation_log (
 )
 """
 
-# All required tables for Check 5
+# All required tables for Check 2
 _ALL_TABLES_DDL = [
     _TRADE_OUTCOMES_DDL,
     _KILL_SWITCH_EVENTS_DDL,
@@ -175,75 +174,73 @@ def _seed_all_segments(sf: sessionmaker, trades_per_segment: int = 30) -> None:
         db.commit()
 
 
-# ── Check 1: V3 data imported ────────────────────────────────────────────
+# ── Check 1: Redis ────────────────────────────────────────────────────────
 
 
-class TestCheckV3DataImported:
-    def test_pass_when_v3_rows_exist(self):
-        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
-        _seed_v3_trades(sf, count=5)
-        result = _check_v3_data_imported(sf)
+class TestCheckRedis:
+    def test_pass_when_redis_reachable(self):
+        mock_redis = MagicMock()
+        mock_redis.ping.return_value = True
+        with patch("src.pipeline.redis.Redis.from_url", return_value=mock_redis):
+            result = _check_redis({})
         assert result.passed is True
-        assert "5 V3 rows" in result.detail
+        assert "PING OK" in result.detail
 
-    def test_fail_when_no_v3_rows(self):
-        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
-        result = _check_v3_data_imported(sf)
+    def test_fail_when_redis_down(self):
+        with patch("src.pipeline.redis.Redis.from_url", side_effect=ConnectionError("refused")):
+            result = _check_redis({})
         assert result.passed is False
-        assert "No V3 historical" in result.detail
-
-    def test_fail_when_only_live_trades(self):
-        """Trades with fill_id set are NOT V3 — should fail."""
-        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
-        now = datetime.now(timezone.utc)
-        with sf() as db:
-            db.execute(text(
-                "INSERT INTO trade_outcomes "
-                "(pair,strategy,regime,session,direction,entry_price,exit_price,"
-                "r_multiple,won,fill_id,opened_at,closed_at) VALUES "
-                "(:p,:s,:rg,:se,:d,:ep,:xp,:rm,:w,:fid,:oa,:ca)"
-            ), {
-                "p": "EURUSD", "s": "MOMENTUM", "rg": "TRENDING_UP",
-                "se": "LONDON", "d": "LONG",
-                "ep": 1.1000, "xp": 1.1050,
-                "rm": 1.5, "w": True, "fid": 12345,
-                "oa": now - timedelta(days=10),
-                "ca": now - timedelta(days=3),
-            })
-            db.commit()
-        result = _check_v3_data_imported(sf)
-        assert result.passed is False
+        assert "unreachable" in result.detail
 
 
-# ── Check 2: Segment counts ──────────────────────────────────────────────
+# ── Check 2: PostgreSQL + tables ──────────────────────────────────────────
 
 
-class TestCheckSegmentCounts:
-    def test_pass_when_all_segments_have_30(self):
-        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
-        _seed_all_segments(sf, trades_per_segment=30)
-        result = _check_segment_counts(sf)
+class TestCheckPostgres:
+    def test_pass_when_all_tables_exist(self):
+        sf = _make_session_factory(*_ALL_TABLES_DDL)
+        result = _check_postgres(sf)
         assert result.passed is True
-        assert "24 active segments" in result.detail
+        assert "7 tables" in result.detail
 
-    def test_fail_when_segments_below_30(self):
+    def test_fail_when_tables_missing(self):
+        # Only create trade_outcomes
         sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
-        # Only seed 5 trades in one segment
-        _seed_v3_trades(sf, count=5)
-        result = _check_segment_counts(sf)
+        result = _check_postgres(sf)
         assert result.passed is False
-        assert "segment(s) below minimum" in result.detail
+        assert "Missing tables" in result.detail
 
-    def test_fail_lists_thin_segments(self):
-        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
-        _seed_all_segments(sf, trades_per_segment=10)
-        result = _check_segment_counts(sf)
+
+# ── Check 3: MT5 ─────────────────────────────────────────────────────────
+
+
+class TestCheckMT5:
+    def test_pass_when_account_info_returns_data(self):
+        mock_mt5 = MagicMock()
+        mock_mt5.account_info.return_value = MagicMock(
+            login=12345, server="Demo", equity=10000.0,
+        )
+        with patch("src.pipeline.get_mt5_client", return_value=mock_mt5):
+            result = _check_mt5({"mt5": {"mode": "stub"}})
+        assert result.passed is True
+        assert "12345" in result.detail
+
+    def test_fail_when_account_info_none(self):
+        mock_mt5 = MagicMock()
+        mock_mt5.account_info.return_value = None
+        with patch("src.pipeline.get_mt5_client", return_value=mock_mt5):
+            result = _check_mt5({"mt5": {"mode": "stub"}})
         assert result.passed is False
-        # All 24 segments should appear since 10 < 30
-        assert "24 segment(s)" in result.detail
+        assert "returned None" in result.detail
+
+    def test_fail_when_initialize_throws(self):
+        with patch("src.pipeline.get_mt5_client", side_effect=RuntimeError("no terminal")):
+            result = _check_mt5({"mt5": {"mode": "real"}})
+        assert result.passed is False
+        assert "failed" in result.detail
 
 
-# ── Check 3: Kill switch ─────────────────────────────────────────────────
+# ── Check 4: Kill switch ─────────────────────────────────────────────────
 
 
 class TestCheckKillSwitch:
@@ -283,126 +280,7 @@ class TestCheckKillSwitch:
         assert "HARD" in result.detail
 
 
-# ── Check 4: Redis ────────────────────────────────────────────────────────
-
-
-class TestCheckRedis:
-    def test_pass_when_redis_reachable(self):
-        mock_redis = MagicMock()
-        mock_redis.ping.return_value = True
-        with patch("src.pipeline.redis.Redis.from_url", return_value=mock_redis):
-            result = _check_redis({})
-        assert result.passed is True
-        assert "PING OK" in result.detail
-
-    def test_fail_when_redis_down(self):
-        with patch("src.pipeline.redis.Redis.from_url", side_effect=ConnectionError("refused")):
-            result = _check_redis({})
-        assert result.passed is False
-        assert "unreachable" in result.detail
-
-
-# ── Check 5: PostgreSQL + tables ──────────────────────────────────────────
-
-
-class TestCheckPostgres:
-    def test_pass_when_all_tables_exist(self):
-        sf = _make_session_factory(*_ALL_TABLES_DDL)
-        result = _check_postgres(sf)
-        assert result.passed is True
-        assert "7 tables" in result.detail
-
-    def test_fail_when_tables_missing(self):
-        # Only create trade_outcomes
-        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
-        result = _check_postgres(sf)
-        assert result.passed is False
-        assert "Missing tables" in result.detail
-
-
-# ── Check 6: MT5 ─────────────────────────────────────────────────────────
-
-
-class TestCheckMT5:
-    def test_pass_when_account_info_returns_data(self):
-        mock_mt5 = MagicMock()
-        mock_mt5.account_info.return_value = MagicMock(
-            login=12345, server="Demo", equity=10000.0,
-        )
-        with patch("src.pipeline.get_mt5_client", return_value=mock_mt5):
-            result = _check_mt5({"mt5": {"mode": "stub"}})
-        assert result.passed is True
-        assert "12345" in result.detail
-
-    def test_fail_when_account_info_none(self):
-        mock_mt5 = MagicMock()
-        mock_mt5.account_info.return_value = None
-        with patch("src.pipeline.get_mt5_client", return_value=mock_mt5):
-            result = _check_mt5({"mt5": {"mode": "stub"}})
-        assert result.passed is False
-        assert "returned None" in result.detail
-
-    def test_fail_when_initialize_throws(self):
-        with patch("src.pipeline.get_mt5_client", side_effect=RuntimeError("no terminal")):
-            result = _check_mt5({"mt5": {"mode": "real"}})
-        assert result.passed is False
-        assert "failed" in result.detail
-
-
-# ── Check 7: Paper trading duration ──────────────────────────────────────
-
-
-class TestCheckPaperDuration:
-    def test_pass_when_7_days(self):
-        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
-        now = datetime.now(timezone.utc)
-        with sf() as db:
-            db.execute(text(
-                "INSERT INTO trade_outcomes "
-                "(pair,strategy,regime,session,direction,entry_price,exit_price,"
-                "r_multiple,won,fill_id,opened_at,closed_at) VALUES "
-                "(:p,:s,:rg,:se,:d,:ep,:xp,:rm,:w,NULL,:oa,:ca)"
-            ), {
-                "p": "EURUSD", "s": "MOMENTUM", "rg": "TRENDING_UP",
-                "se": "LONDON", "d": "LONG",
-                "ep": 1.1, "xp": 1.105, "rm": 1.5, "w": True,
-                "oa": now - timedelta(days=10),
-                "ca": now - timedelta(days=1),
-            })
-            db.commit()
-        result = _check_paper_duration(sf)
-        assert result.passed is True
-        assert "9 days" in result.detail
-
-    def test_fail_when_less_than_7_days(self):
-        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
-        now = datetime.now(timezone.utc)
-        with sf() as db:
-            db.execute(text(
-                "INSERT INTO trade_outcomes "
-                "(pair,strategy,regime,session,direction,entry_price,exit_price,"
-                "r_multiple,won,fill_id,opened_at,closed_at) VALUES "
-                "(:p,:s,:rg,:se,:d,:ep,:xp,:rm,:w,NULL,:oa,:ca)"
-            ), {
-                "p": "EURUSD", "s": "MOMENTUM", "rg": "TRENDING_UP",
-                "se": "LONDON", "d": "LONG",
-                "ep": 1.1, "xp": 1.105, "rm": 1.5, "w": True,
-                "oa": now - timedelta(days=3),
-                "ca": now - timedelta(days=1),
-            })
-            db.commit()
-        result = _check_paper_duration(sf)
-        assert result.passed is False
-        assert "2 day(s)" in result.detail
-
-    def test_fail_when_no_trades(self):
-        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
-        result = _check_paper_duration(sf)
-        assert result.passed is False
-        assert "not started" in result.detail
-
-
-# ── Check 8: State drift ─────────────────────────────────────────────────
+# ── Check 5: State drift ─────────────────────────────────────────────────
 
 
 class TestCheckNoStateDrift:
@@ -439,7 +317,7 @@ class TestCheckNoStateDrift:
         assert "1 unresolved" in result.detail
 
 
-# ── Check 9: capital_allocation_pct ───────────────────────────────────────
+# ── Check 6: capital_allocation_pct ───────────────────────────────────────
 
 
 class TestCheckCapitalAllocation:
@@ -480,7 +358,7 @@ class TestCheckCapitalAllocation:
         assert "not a valid number" in result.detail
 
 
-# ── Check 10: secrets.env ────────────────────────────────────────────────
+# ── Check 7: secrets.env ────────────────────────────────────────────────
 
 
 class TestCheckSecretsEnv:
@@ -534,122 +412,295 @@ class TestCheckSecretsEnv:
         assert result.passed is True
 
 
+# ── Check 8: V3 data imported ────────────────────────────────────────────
+
+
+class TestCheckV3DataImported:
+    def test_pass_when_v3_rows_exist(self):
+        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
+        _seed_v3_trades(sf, count=5)
+        result = _check_v3_data_imported(sf)
+        assert result.passed is True
+        assert "5 V3 rows" in result.detail
+
+    def test_fail_when_no_v3_rows(self):
+        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
+        result = _check_v3_data_imported(sf)
+        assert result.passed is False
+        assert "No V3 historical" in result.detail
+
+    def test_fail_when_only_live_trades(self):
+        """Trades with fill_id set are NOT V3 — should fail."""
+        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
+        now = datetime.now(timezone.utc)
+        with sf() as db:
+            db.execute(text(
+                "INSERT INTO trade_outcomes "
+                "(pair,strategy,regime,session,direction,entry_price,exit_price,"
+                "r_multiple,won,fill_id,opened_at,closed_at) VALUES "
+                "(:p,:s,:rg,:se,:d,:ep,:xp,:rm,:w,:fid,:oa,:ca)"
+            ), {
+                "p": "EURUSD", "s": "MOMENTUM", "rg": "TRENDING_UP",
+                "se": "LONDON", "d": "LONG",
+                "ep": 1.1000, "xp": 1.1050,
+                "rm": 1.5, "w": True, "fid": 12345,
+                "oa": now - timedelta(days=10),
+                "ca": now - timedelta(days=3),
+            })
+            db.commit()
+        result = _check_v3_data_imported(sf)
+        assert result.passed is False
+
+
+# ── Check 9: Segment counts ──────────────────────────────────────────────
+
+
+class TestCheckSegmentCounts:
+    def test_pass_when_all_segments_have_30(self):
+        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
+        _seed_all_segments(sf, trades_per_segment=30)
+        result = _check_segment_counts(sf)
+        assert result.passed is True
+        assert "24 active segments" in result.detail
+
+    def test_fail_when_segments_below_30(self):
+        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
+        # Only seed 5 trades in one segment
+        _seed_v3_trades(sf, count=5)
+        result = _check_segment_counts(sf)
+        assert result.passed is False
+        assert "segment(s) below minimum" in result.detail
+
+    def test_fail_lists_thin_segments(self):
+        sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
+        _seed_all_segments(sf, trades_per_segment=10)
+        result = _check_segment_counts(sf)
+        assert result.passed is False
+        # All 24 segments should appear since 10 < 30
+        assert "24 segment(s)" in result.detail
+
+
 # ── run_preflight() integration ──────────────────────────────────────────
 
 
 class TestRunPreflight:
     """Test the orchestrator — all checks mocked to isolate the flow."""
 
-    def _all_passing_settings(self) -> dict:
-        return {"risk": {"capital_allocation_pct": 0.10}}
+    def _settings(self, mode: str = "paper") -> dict:
+        return {
+            "system": {"mode": mode},
+            "risk": {"capital_allocation_pct": 0.10},
+        }
 
-    def _make_all_pass_patches(self):
-        """Return patches that make all 10 checks pass."""
-        ok = PreflightResult(name="stub", passed=True, detail="ok")
-        return [
-            patch("src.pipeline._check_v3_data_imported", return_value=ok),
-            patch("src.pipeline._check_segment_counts", return_value=ok),
-            patch("src.pipeline._check_kill_switch", return_value=ok),
-            patch("src.pipeline._check_redis", return_value=ok),
-            patch("src.pipeline._check_postgres", return_value=ok),
-            patch("src.pipeline._check_mt5", return_value=ok),
-            patch("src.pipeline._check_paper_duration", return_value=ok),
-            patch("src.pipeline._check_no_state_drift", return_value=ok),
-            patch("src.pipeline._check_capital_allocation", return_value=ok),
-            patch("src.pipeline._check_secrets_env", return_value=ok),
-        ]
+    def _all_pass(self) -> PreflightResult:
+        return PreflightResult(name="stub", passed=True, detail="ok")
 
-    def test_all_pass_correct_confirmation(self):
-        settings = self._all_passing_settings()
-        patches = self._make_all_pass_patches()
+    def _fail(self, name: str = "stub") -> PreflightResult:
+        return PreflightResult(name=name, passed=False, detail="down", fix="fix it")
+
+    def _make_patches(
+        self,
+        *,
+        hard_overrides: dict[str, PreflightResult] | None = None,
+        bypass_overrides: dict[str, PreflightResult] | None = None,
+    ) -> list:
+        """Return patches for all 9 checks. Override specific checks by name."""
+        ok = self._all_pass()
+        hard_overrides = hard_overrides or {}
+        bypass_overrides = bypass_overrides or {}
+
+        hard_checks = {
+            "_check_redis": ok,
+            "_check_postgres": ok,
+            "_check_mt5": ok,
+            "_check_kill_switch": ok,
+            "_check_no_state_drift": ok,
+            "_check_capital_allocation": ok,
+            "_check_secrets_env": ok,
+        }
+        bypass_checks = {
+            "_check_v3_data_imported": ok,
+            "_check_segment_counts": ok,
+        }
+        hard_checks.update(hard_overrides)
+        bypass_checks.update(bypass_overrides)
+
+        patches = []
+        for name, result in {**hard_checks, **bypass_checks}.items():
+            patches.append(patch(f"src.pipeline.{name}", return_value=result))
+        return patches
+
+    def _run_with_patches(self, patches, settings, input_fn):
         for p in patches:
             p.start()
         try:
-            cap = run_preflight(
+            return run_preflight(
                 settings,
                 session_factory=MagicMock(),
-                _input_fn=lambda _: "CONFIRMED 0.1",
+                _input_fn=input_fn,
             )
-            assert cap == 0.1
         finally:
             for p in patches:
                 p.stop()
+
+    # ── All pass — confirmation flow ─────────────────────────────────
+
+    def test_all_pass_correct_confirmation(self):
+        settings = self._settings("paper")
+        patches = self._make_patches()
+        cap = self._run_with_patches(patches, settings, lambda _: "CONFIRMED 0.1")
+        assert cap == 0.1
+
+    def test_all_pass_correct_confirmation_live(self):
+        settings = self._settings("live")
+        patches = self._make_patches()
+        cap = self._run_with_patches(patches, settings, lambda _: "CONFIRMED 0.1")
+        assert cap == 0.1
 
     def test_all_pass_wrong_confirmation_aborts(self):
-        settings = self._all_passing_settings()
-        patches = self._make_all_pass_patches()
-        for p in patches:
-            p.start()
-        try:
-            with pytest.raises(SystemExit) as exc_info:
-                run_preflight(
-                    settings,
-                    session_factory=MagicMock(),
-                    _input_fn=lambda _: "YOLO",
-                )
-            assert exc_info.value.code == 1
-        finally:
-            for p in patches:
-                p.stop()
-
-    def test_any_check_fails_aborts(self):
-        settings = self._all_passing_settings()
-        ok = PreflightResult(name="stub", passed=True, detail="ok")
-        fail = PreflightResult(name="redis", passed=False, detail="down", fix="start redis")
-        patches = [
-            patch("src.pipeline._check_v3_data_imported", return_value=ok),
-            patch("src.pipeline._check_segment_counts", return_value=ok),
-            patch("src.pipeline._check_kill_switch", return_value=ok),
-            patch("src.pipeline._check_redis", return_value=fail),  # <-- this one fails
-            patch("src.pipeline._check_postgres", return_value=ok),
-            patch("src.pipeline._check_mt5", return_value=ok),
-            patch("src.pipeline._check_paper_duration", return_value=ok),
-            patch("src.pipeline._check_no_state_drift", return_value=ok),
-            patch("src.pipeline._check_capital_allocation", return_value=ok),
-            patch("src.pipeline._check_secrets_env", return_value=ok),
-        ]
-        for p in patches:
-            p.start()
-        try:
-            with pytest.raises(SystemExit) as exc_info:
-                run_preflight(
-                    settings,
-                    session_factory=MagicMock(),
-                    _input_fn=lambda _: "CONFIRMED 0.1",
-                )
-            assert exc_info.value.code == 1
-        finally:
-            for p in patches:
-                p.stop()
+        settings = self._settings("paper")
+        patches = self._make_patches()
+        with pytest.raises(SystemExit) as exc_info:
+            self._run_with_patches(patches, settings, lambda _: "YOLO")
+        assert exc_info.value.code == 1
 
     def test_eof_aborts(self):
-        settings = self._all_passing_settings()
-        patches = self._make_all_pass_patches()
-        for p in patches:
-            p.start()
-        try:
-            with pytest.raises(SystemExit):
-                run_preflight(
-                    settings,
-                    session_factory=MagicMock(),
-                    _input_fn=MagicMock(side_effect=EOFError),
-                )
-        finally:
-            for p in patches:
-                p.stop()
+        settings = self._settings("paper")
+        patches = self._make_patches()
+        with pytest.raises(SystemExit):
+            self._run_with_patches(
+                patches, settings, MagicMock(side_effect=EOFError),
+            )
 
     def test_keyboard_interrupt_aborts(self):
-        settings = self._all_passing_settings()
-        patches = self._make_all_pass_patches()
-        for p in patches:
-            p.start()
-        try:
-            with pytest.raises(SystemExit):
-                run_preflight(
-                    settings,
-                    session_factory=MagicMock(),
-                    _input_fn=MagicMock(side_effect=KeyboardInterrupt),
-                )
-        finally:
-            for p in patches:
-                p.stop()
+        settings = self._settings("paper")
+        patches = self._make_patches()
+        with pytest.raises(SystemExit):
+            self._run_with_patches(
+                patches, settings, MagicMock(side_effect=KeyboardInterrupt),
+            )
+
+    # ── Hard check failures always block ─────────────────────────────
+
+    def test_hard_check_fails_blocks_paper_mode(self):
+        """A hard check (1-7) failure blocks startup even in paper mode."""
+        settings = self._settings("paper")
+        patches = self._make_patches(
+            hard_overrides={"_check_redis": self._fail("redis")},
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            self._run_with_patches(patches, settings, lambda _: "CONFIRMED 0.1")
+        assert exc_info.value.code == 1
+
+    def test_hard_check_fails_blocks_live_mode(self):
+        """A hard check (1-7) failure blocks startup in live mode."""
+        settings = self._settings("live")
+        patches = self._make_patches(
+            hard_overrides={"_check_postgres": self._fail("postgres")},
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            self._run_with_patches(patches, settings, lambda _: "CONFIRMED 0.1")
+        assert exc_info.value.code == 1
+
+    def test_multiple_hard_failures_block(self):
+        settings = self._settings("paper")
+        patches = self._make_patches(
+            hard_overrides={
+                "_check_redis": self._fail("redis"),
+                "_check_mt5": self._fail("mt5"),
+            },
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            self._run_with_patches(patches, settings, lambda _: "CONFIRMED 0.1")
+        assert exc_info.value.code == 1
+
+    # ── Paper mode bypass for checks 8-9 ─────────────────────────────
+
+    def test_paper_mode_bypasses_v3_data_check(self):
+        """Check 8 (V3 data) fails in paper mode → warn, don't block."""
+        settings = self._settings("paper")
+        patches = self._make_patches(
+            bypass_overrides={"_check_v3_data_imported": self._fail("v3_data")},
+        )
+        cap = self._run_with_patches(patches, settings, lambda _: "CONFIRMED 0.1")
+        assert cap == 0.1
+
+    def test_paper_mode_bypasses_segment_counts_check(self):
+        """Check 9 (segment counts) fails in paper mode → warn, don't block."""
+        settings = self._settings("paper")
+        patches = self._make_patches(
+            bypass_overrides={"_check_segment_counts": self._fail("segments")},
+        )
+        cap = self._run_with_patches(patches, settings, lambda _: "CONFIRMED 0.1")
+        assert cap == 0.1
+
+    def test_paper_mode_bypasses_both_data_checks(self):
+        """Both checks 8 and 9 fail in paper mode → warn, don't block."""
+        settings = self._settings("paper")
+        patches = self._make_patches(
+            bypass_overrides={
+                "_check_v3_data_imported": self._fail("v3_data"),
+                "_check_segment_counts": self._fail("segments"),
+            },
+        )
+        cap = self._run_with_patches(patches, settings, lambda _: "CONFIRMED 0.1")
+        assert cap == 0.1
+
+    # ── Live mode blocks on checks 8-9 ───────────────────────────────
+
+    def test_live_mode_blocks_on_v3_data_check(self):
+        """Check 8 (V3 data) fails in live mode → block startup."""
+        settings = self._settings("live")
+        patches = self._make_patches(
+            bypass_overrides={"_check_v3_data_imported": self._fail("v3_data")},
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            self._run_with_patches(patches, settings, lambda _: "CONFIRMED 0.1")
+        assert exc_info.value.code == 1
+
+    def test_live_mode_blocks_on_segment_counts_check(self):
+        """Check 9 (segment counts) fails in live mode → block startup."""
+        settings = self._settings("live")
+        patches = self._make_patches(
+            bypass_overrides={"_check_segment_counts": self._fail("segments")},
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            self._run_with_patches(patches, settings, lambda _: "CONFIRMED 0.1")
+        assert exc_info.value.code == 1
+
+    def test_live_mode_blocks_on_both_data_checks(self):
+        """Both checks 8 and 9 fail in live mode → block startup."""
+        settings = self._settings("live")
+        patches = self._make_patches(
+            bypass_overrides={
+                "_check_v3_data_imported": self._fail("v3_data"),
+                "_check_segment_counts": self._fail("segments"),
+            },
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            self._run_with_patches(patches, settings, lambda _: "CONFIRMED 0.1")
+        assert exc_info.value.code == 1
+
+    # ── Mixed: hard fail + bypassable fail ───────────────────────────
+
+    def test_hard_fail_takes_priority_over_bypass(self):
+        """Hard failure blocks even if bypassable checks also fail in paper mode."""
+        settings = self._settings("paper")
+        patches = self._make_patches(
+            hard_overrides={"_check_redis": self._fail("redis")},
+            bypass_overrides={"_check_v3_data_imported": self._fail("v3_data")},
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            self._run_with_patches(patches, settings, lambda _: "CONFIRMED 0.1")
+        assert exc_info.value.code == 1
+
+    # ── Default trading_mode ─────────────────────────────────────────
+
+    def test_missing_system_mode_defaults_to_paper(self):
+        """If system.mode is absent, defaults to paper (bypass allowed)."""
+        settings = {"risk": {"capital_allocation_pct": 0.10}}
+        patches = self._make_patches(
+            bypass_overrides={"_check_v3_data_imported": self._fail("v3_data")},
+        )
+        cap = self._run_with_patches(patches, settings, lambda _: "CONFIRMED 0.1")
+        assert cap == 0.1

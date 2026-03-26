@@ -698,7 +698,7 @@ class TestGracefulShutdown:
                 "mt5": {"mode": "stub", "pairs": ["EURUSD"]},
                 "prometheus": {"port": 0},
             }), \
-             patch("src.pipeline.run_preflight"), \
+             patch("src.pipeline.run_preflight", return_value=0.10), \
              patch("src.pipeline.init_context") as mock_init, \
              patch("src.pipeline.start_metrics_server"), \
              patch("ops.apex_wrapper.is_shutting_down", side_effect=mock_is_shutting_down), \
@@ -740,7 +740,7 @@ class TestUnhandledException:
                 "mt5": {"mode": "stub", "pairs": ["EURUSD"]},
                 "prometheus": {"port": 0},
             }), \
-             patch("src.pipeline.run_preflight"), \
+             patch("src.pipeline.run_preflight", return_value=0.10), \
              patch("src.pipeline.init_context") as mock_init, \
              patch("src.pipeline.start_metrics_server"), \
              patch("ops.apex_wrapper.is_shutting_down", return_value=False), \
