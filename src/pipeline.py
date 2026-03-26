@@ -22,6 +22,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+# Ensure project root is on sys.path regardless of invocation method
+# (e.g. `python src/pipeline.py` sets sys.path[0]=src/, not the project root)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 import redis
 import structlog
 import yaml
@@ -616,6 +622,12 @@ def init_context(
     redis_client: Any = None,
 ) -> PipelineContext:
     """Build every component once.  DI overrides for tests."""
+    if session_factory is None:
+        session_factory = make_session_factory()
+    if redis_client is None:
+        redis_url = os.environ.get("APEX_REDIS_URL", "redis://localhost:6379/0")
+        redis_client = redis.Redis.from_url(redis_url, decode_responses=True)
+
     mt5 = get_mt5_client(settings.get("mt5", {}).get("mode"))
     mt5.initialize()
 

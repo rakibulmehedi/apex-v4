@@ -10,3 +10,22 @@ Do NOT generate Linux-specific ops artifacts (systemd, bash scripts).
 Use Windows equivalents: NSSM for services, PowerShell for scripts,
 Windows paths (`C:\apex_v4`). The MT5 terminal requires Windows — this
 is a hard constraint, not a preference.
+
+### L2: init_context() must create default dependencies
+`init_context()` accepts optional `session_factory` and `redis_client` for
+DI in tests, but when called from `_async_main()` without overrides, these
+default to `None` — which cascades to every component (KillSwitch,
+StateReconciler, etc.), causing `TypeError: 'NoneType' object is not callable`
+and `AttributeError: 'NoneType' has no attribute 'get'`.
+
+**Rule:** Any function that accepts optional DI parameters and is called from
+production code paths must create sensible defaults when `None` is passed.
+Check this pattern whenever adding new DI-style parameters.
+
+### L3: Mock return values must match the real function's type
+When patching `run_preflight` (returns `float`) the mock must set
+`return_value=0.10`, not leave it as `MagicMock`. Otherwise f-string format
+specs like `:.0f` crash with `TypeError: unsupported format string`.
+
+**Rule:** Every `patch()` of a function whose return value is consumed
+downstream must set `return_value` to a type-correct value.
