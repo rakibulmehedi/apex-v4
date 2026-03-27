@@ -5,7 +5,7 @@ Phase: P1.3.
 
 On every M5/M15/H1 candle close the feed builds a validated
 ``MarketSnapshot`` for each configured pair and publishes it as JSON
-over ZMQ PUSH to ``ipc:///tmp/apex_market.ipc``.
+over ZMQ PUSH to ``tcp://127.0.0.1:5559``.
 
 Validation failures are logged and skipped — bad data never propagates.
 """
@@ -29,7 +29,7 @@ logger = structlog.get_logger(__name__)
 
 # ── defaults ─────────────────────────────────────────────────────────────
 
-_DEFAULT_ZMQ_ADDR = "ipc:///tmp/apex_market.ipc"
+_DEFAULT_ZMQ_ADDR = "tcp://127.0.0.1:5559"
 _DEFAULT_POLL_SECONDS = 5.0
 
 # Trigger timeframes — a snapshot is emitted when any of these close.

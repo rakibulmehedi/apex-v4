@@ -212,7 +212,7 @@ Requirements:
 - Session classifier: LONDON 07-16 UTC, NY 12-21 UTC,
   ASIA 22-07 UTC, OVERLAP 12-16 UTC
 - Mark is_stale=True if last tick > 5000ms old
-- Publish valid snapshots to ZMQ PUSH ipc:///tmp/apex_market.ipc
+- Publish valid snapshots to ZMQ PUSH tcp://127.0.0.1:5559
 - On validation failure: log error, skip — never propagate bad data
 
 Use asyncio. Use structlog for all logging.

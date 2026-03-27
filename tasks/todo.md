@@ -443,7 +443,7 @@ detection, session classification, snapshot validation, and ZMQ publishing.
   - [x] `classify_session(utc_hour)` — OVERLAP 12-16, LONDON 7-12, NY 16-21, ASIA else
   - [x] Async polling loop with candle close detection
   - [x] Build + validate MarketSnapshot per pair on candle close
-  - [x] ZMQ PUSH to `ipc:///tmp/apex_market.ipc`
+  - [x] ZMQ PUSH to `tcp://127.0.0.1:5559`
   - [x] On validation failure: log error, skip — never propagate bad data
 - [x] Write unit tests — 23 tests, MT5 fully mocked
 - [x] Run all tests — 117/117 pass (23 feed + 66 schema + 28 MT5)

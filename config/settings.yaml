@@ -69,5 +69,8 @@ alpha:
 reconciler:
   heartbeat_seconds: 5
 
+zmq:
+  address: "tcp://127.0.0.1:5559"
+
 prometheus:
   port: 8000

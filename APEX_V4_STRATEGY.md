@@ -281,7 +281,7 @@ MT5 BROKER FEED
 │  MARKET INPUT LAYER          src/market/                    │
 │  feed.py — async MT5 tick stream + candle builder           │
 │  validator.py — MarketSnapshot schema validation            │
-│  Output → ZMQ PUSH → ipc:///tmp/apex_market.ipc            │
+│  Output → ZMQ PUSH → tcp://127.0.0.1:5559                  │
 └─────────────────────────┬───────────────────────────────────┘
                           │ ZMQ PULL
                           ▼

@@ -60,7 +60,7 @@ from src.risk.reconciler import StateReconciler
 
 logger = structlog.get_logger(__name__)
 
-_ZMQ_ADDR = "ipc:///tmp/apex_market.ipc"
+_ZMQ_ADDR = "tcp://127.0.0.1:5559"
 _ZMQ_POLL_TIMEOUT_MS = 1000
 
 
@@ -690,9 +690,11 @@ def init_context(
     recorder = TradeOutcomeRecorder(perf_db=perf_db)
     updater = KellyInputUpdater(perf_db=perf_db, redis_client=redis_client)
 
+    zmq_addr = settings.get("zmq", {}).get("address", _ZMQ_ADDR)
     feed = MarketFeed(
         client=mt5,
         pairs=pairs,
+        zmq_addr=zmq_addr,
         poll_interval=settings.get("mt5", {}).get("poll_interval", 5.0),
     )
 
@@ -933,9 +935,10 @@ async def _async_main() -> None:
     recon_task = asyncio.create_task(ctx.reconciler.run())
 
     # ZMQ PULL socket
+    zmq_addr = settings.get("zmq", {}).get("address", _ZMQ_ADDR)
     zmq_ctx = zmq.asyncio.Context()
     zmq_sock = zmq_ctx.socket(zmq.PULL)
-    zmq_sock.connect(_ZMQ_ADDR)
+    zmq_sock.connect(zmq_addr)
 
     logger.info("pipeline_started", mode=settings.get("system", {}).get("mode", "paper"))
 
