@@ -981,4 +981,8 @@ async def _async_main() -> None:
 
 def main() -> None:
     """Sync entry point called by ``ops/apex_wrapper.py``."""
+    # Windows defaults to ProactorEventLoop which lacks add_reader() needed
+    # by pyzmq async sockets.  SelectorEventLoop works on all platforms.
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(_async_main())

@@ -29,3 +29,12 @@ specs like `:.0f` crash with `TypeError: unsupported format string`.
 
 **Rule:** Every `patch()` of a function whose return value is consumed
 downstream must set `return_value` to a type-correct value.
+
+### L4: Windows asyncio requires SelectorEventLoopPolicy for pyzmq
+Python 3.10+ on Windows defaults to `ProactorEventLoop`, which does not
+implement `add_reader()`/`remove_reader()` required by pyzmq async sockets.
+This causes `RuntimeError: Proactor event loop does not implement add_reader`.
+
+**Rule:** Any entry point that uses `asyncio.run()` with pyzmq async sockets
+must set `asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())`
+on Windows (`sys.platform == "win32"`) before calling `asyncio.run()`.
