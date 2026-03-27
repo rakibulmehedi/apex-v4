@@ -1,14 +1,20 @@
 import os
 import sys
 from logging.config import fileConfig
+from urllib.parse import quote_plus
 
+from dotenv import load_dotenv
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
 
 # Ensure the project root is on sys.path so `db.models` is importable.
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, _project_root)
+
+# Load config/secrets.env so POSTGRES_* vars are available.
+load_dotenv(os.path.join(_project_root, "config", "secrets.env"))
 
 from db.models import Base  # noqa: E402
 
@@ -16,9 +22,23 @@ from db.models import Base  # noqa: E402
 # access to the values within the .ini file in use.
 config = context.config
 
-# Prefer DATABASE_URL from environment; fall back to alembic.ini value.
-if os.environ.get("DATABASE_URL"):
-    config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
+# Build DATABASE_URL from individual POSTGRES_* env vars; fall back to a
+# pre-built DATABASE_URL; finally fall back to the alembic.ini value.
+_db_url = os.environ.get("DATABASE_URL")
+if not _db_url:
+    _user = os.environ.get("POSTGRES_USER")
+    _password = os.environ.get("POSTGRES_PASSWORD")
+    _host = os.environ.get("POSTGRES_HOST", "localhost")
+    _port = os.environ.get("POSTGRES_PORT", "5432")
+    _db = os.environ.get("POSTGRES_DB", "apex_v4")
+    if _user and _password:
+        _db_url = (
+            f"postgresql://{quote_plus(_user)}:{quote_plus(_password)}"
+            f"@{_host}:{_port}/{_db}"
+        )
+
+if _db_url:
+    config.set_main_option("sqlalchemy.url", _db_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
