@@ -38,3 +38,20 @@ This causes `RuntimeError: Proactor event loop does not implement add_reader`.
 **Rule:** Any entry point that uses `asyncio.run()` with pyzmq async sockets
 must set `asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())`
 on Windows (`sys.platform == "win32"`) before calling `asyncio.run()`.
+
+### L5: Database URL resolution must be consistent across all entry points
+Alembic env.py and db/models.py must resolve database URLs using the same
+logic: `APEX_DATABASE_URL` (full string) → `POSTGRES_*` individual vars →
+fallback. A mismatch causes "connection refused" on Windows where PostgreSQL
+requires authentication.
+
+**Rule:** When adding new database-using entry points, always use
+`db.models.get_database_url()` — never build the URL independently.
+
+### L6: Docker-compose ports must bind to 127.0.0.1 on production
+`ports: "3000:3000"` exposes to 0.0.0.0 (all interfaces, including internet).
+For internal services like Prometheus and Grafana, always use
+`ports: "127.0.0.1:3000:3000"`.
+
+**Rule:** Every port mapping in docker-compose.yml for internal services
+must explicitly bind to 127.0.0.1.

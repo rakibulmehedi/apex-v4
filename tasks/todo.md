@@ -1,5 +1,49 @@
 # APEX V4 — Active Task Plan
 
+## Session: 2026-03-28 — Production Readiness Hardening
+
+### Goal
+Wall Street-grade production readiness review: discovery, remediation,
+documentation, and verification. Final deployment gate before live trading.
+
+### Checklist
+- [x] Phase 1: Discovery — scan operational, observability, code, security gaps
+- [x] Phase 2: Remediation — fix all code-level gaps
+  - [x] Bind Prometheus/Grafana to 127.0.0.1, pin Docker images
+  - [x] Add Prometheus alert rules (kill switch, dead-man, state drift, risk, perf)
+  - [x] Add structlog JSON logging with file rotation
+  - [x] Harden DB connection pool (pre_ping, recycle, bounded)
+  - [x] Fix get_database_url() to resolve APEX_DATABASE_URL → POSTGRES_* vars
+  - [x] Remove TODO in validator.py
+  - [x] Add Grafana provisioning for auto-import
+  - [x] 8 new tests — all pass
+- [x] Phase 3: Documentation
+  - [x] ops/RUNBOOK.md — complete operator runbook
+  - [x] ops/DEPLOYMENT_CHECKLIST.md — 50-item deployment gate checklist
+  - [x] ops/INCIDENT_RESPONSE.md — P0-P3 incident playbook
+  - [x] ops/backup_db.ps1 — PostgreSQL backup script
+  - [x] APEX_V4_STRATEGY.md Section 11 — Production Deployment
+  - [x] Updated Appendix folder structure
+- [x] Phase 4: Final Verification
+  - [x] pytest tests/ -v → 701 passed, 0 failures
+  - [x] /risk-verify → 5/5 formulas VERIFIED, 0 deviations
+  - [x] /audit → 100/100 compliance, 9/9 ADRs PASS
+  - [x] Deployment readiness score: 97/100
+
+### Review
+**Built:** Complete production readiness hardening. Security (ports bound to
+localhost, no default passwords), observability (12 alert rules covering all
+failure modes), resilience (DB pool hardening, structured logging with rotation),
+and operations (runbook, deployment checklist, incident response, backup script).
+
+**Verification:** 701 tests pass. All 5 mathematical formulas match Section 7
+exactly with zero deviations. Architecture audit scores 100/100 across 9 ADRs,
+18 modules, and all code standards.
+
+**Status: COMPLETE**
+
+---
+
 ## Session: 2026-03-26 — Capital Allocation + Grafana Dashboard (P6.4)
 
 ### Goal
