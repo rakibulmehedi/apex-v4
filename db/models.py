@@ -282,16 +282,49 @@ class ReconciliationLog(Base):
 # ---------------------------------------------------------------------------
 
 def get_database_url() -> str:
-    """Build PostgreSQL URL from environment or defaults."""
-    return os.environ.get(
-        "APEX_DATABASE_URL",
-        "postgresql://localhost:5432/apex_v4",
-    )
+    """Build PostgreSQL URL from environment variables.
+
+    Resolution order:
+      1. APEX_DATABASE_URL (full connection string)
+      2. Individual POSTGRES_* vars (assembled into URL)
+      3. Fallback to localhost with no auth (dev only)
+
+    On the Windows VPS, nssm_install.ps1 loads secrets.env which should
+    set APEX_DATABASE_URL or POSTGRES_USER + POSTGRES_PASSWORD.
+    """
+    url = os.environ.get("APEX_DATABASE_URL")
+    if url:
+        return url
+
+    # Build from individual parts (matches Alembic env.py logic)
+    user = os.environ.get("POSTGRES_USER")
+    password = os.environ.get("POSTGRES_PASSWORD")
+    host = os.environ.get("POSTGRES_HOST", "localhost")
+    port = os.environ.get("POSTGRES_PORT", "5432")
+    db = os.environ.get("POSTGRES_DB", "apex_v4")
+
+    if user and password:
+        from urllib.parse import quote_plus
+        return f"postgresql://{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{db}"
+
+    # Dev fallback — will fail on production if auth is required
+    return f"postgresql://{host}:{port}/{db}"
 
 
 def make_engine(url: str | None = None):
-    """Create a SQLAlchemy engine."""
-    return create_engine(url or get_database_url(), pool_pre_ping=True)
+    """Create a SQLAlchemy engine with production-grade pool settings.
+
+    - pool_pre_ping: detect stale connections before use
+    - pool_recycle: recycle connections after 30 min (survives PG restarts)
+    - pool_size/max_overflow: bounded connection pool
+    """
+    return create_engine(
+        url or get_database_url(),
+        pool_pre_ping=True,
+        pool_recycle=1800,
+        pool_size=5,
+        max_overflow=10,
+    )
 
 
 def make_session_factory(engine=None) -> sessionmaker[Session]:

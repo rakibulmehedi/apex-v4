@@ -981,6 +981,19 @@ async def _async_main() -> None:
 
 def main() -> None:
     """Sync entry point called by ``ops/apex_wrapper.py``."""
+    # Configure structured logging before anything else
+    from src.observability.logging import configure_logging
+
+    settings = load_settings()
+    log_level = settings.get("system", {}).get("log_level", "INFO")
+    # On Windows VPS, NSSM captures stdout; also write to logs/ for rotation
+    log_dir = os.environ.get("APEX_LOG_DIR", "logs")
+    configure_logging(
+        level=log_level,
+        log_dir=log_dir,
+        json_output=True,
+    )
+
     # Windows defaults to ProactorEventLoop which lacks add_reader() needed
     # by pyzmq async sockets.  SelectorEventLoop works on all platforms.
     if sys.platform == "win32":

@@ -1,0 +1,112 @@
+# APEX V4 — Prometheus Alerting Rules
+# Architecture ref: APEX_V4_STRATEGY.md Section 5 (Observability)
+#
+# Alert severity levels:
+#   critical — immediate operator action required (P0/P1)
+#   warning  — investigate within 1 hour (P2)
+#   info     — awareness only (P3)
+
+groups:
+  - name: apex_v4_critical
+    rules:
+      # ── Kill Switch Alerts ──────────────────────────────────────────
+
+      - alert: KillSwitchSOFT
+        expr: increase(apex_kill_switch_total{level="SOFT"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "APEX V4 SOFT kill switch triggered"
+          description: "No new signals allowed. Check pipeline logs for cause."
+
+      - alert: KillSwitchHARD
+        expr: increase(apex_kill_switch_total{level="HARD"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "APEX V4 HARD kill switch — all positions flattened"
+          description: "All positions have been closed. Investigate immediately. See RUNBOOK.md for reset procedure."
+
+      - alert: KillSwitchEMERGENCY
+        expr: increase(apex_kill_switch_total{level="EMERGENCY"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "APEX V4 EMERGENCY kill switch — MT5 disconnected"
+          description: "MT5 disconnected, state dumped to disk. Investigate immediately. See INCIDENT_RESPONSE.md P0 procedure."
+
+      # ── Dead-Man's Switch ───────────────────────────────────────────
+
+      - alert: PipelineDown
+        expr: absent(apex_cycle_duration_ms_count) or increase(apex_cycle_duration_ms_count[10m]) == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "APEX V4 pipeline stopped emitting metrics"
+          description: "No pipeline cycles observed for 10+ minutes. The pipeline may have crashed or frozen. Check NSSM service status."
+
+      # ── State Drift ─────────────────────────────────────────────────
+
+      - alert: StateDrift
+        expr: increase(apex_state_drift_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "APEX V4 state drift detected (Redis vs MT5 mismatch)"
+          description: "The reconciler detected position mismatch between Redis and MT5. HARD kill switch should have triggered. Verify positions."
+
+      # ── Risk Thresholds ─────────────────────────────────────────────
+
+      - alert: HighDrawdown
+        expr: apex_current_drawdown_pct > 0.05
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "APEX V4 drawdown above 5%"
+          description: "Current drawdown is {{ $value | humanizePercentage }}. Risk gates are reducing position sizes."
+
+      - alert: HighVaR
+        expr: apex_portfolio_var_pct > 0.03
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "APEX V4 portfolio VaR above 3% soft limit"
+          description: "Portfolio VaR is {{ $value | humanizePercentage }}. SOFT kill switch may trigger."
+
+      - alert: CorrelationCrisis
+        expr: apex_covariance_condition > 30
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "APEX V4 covariance condition number critical (>30)"
+          description: "Condition number kappa={{ $value }}. HARD kill switch will trigger. Correlation crisis."
+
+  - name: apex_v4_performance
+    rules:
+      # ── Performance Monitoring ──────────────────────────────────────
+
+      - alert: HighSignalLatency
+        expr: histogram_quantile(0.95, rate(apex_signal_latency_ms_bucket[5m])) > 500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "APEX V4 signal latency p95 above 500ms"
+          description: "Signal processing latency is {{ $value }}ms (p95). Target is <200ms."
+
+      - alert: HighSlippage
+        expr: histogram_quantile(0.95, rate(apex_slippage_points_bucket[1h])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "APEX V4 execution slippage p95 above 2 points"
+          description: "Slippage is {{ $value }} points (p95). Target is <1 point."

@@ -1,17 +1,24 @@
 services:
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.53.0
     volumes:
       - ./ops/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./ops/alert_rules.yml:/etc/prometheus/alert_rules.yml
     ports:
-      - "9090:9090"
-    
+      - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.1.0
+    volumes:
+      - ./ops/grafana_dashboard.json:/var/lib/grafana/dashboards/apex_v4.json
+      - ./ops/grafana_provisioning:/etc/grafana/provisioning
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-changeme}
+      - GF_USERS_ALLOW_SIGN_UP=false
     depends_on:
       - prometheus
+    restart: unless-stopped

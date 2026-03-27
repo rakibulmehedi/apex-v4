@@ -669,6 +669,75 @@ Phase 6:  10-item checklist 100% complete
 
 ---
 
+## 11. Production Deployment
+
+### 11.1 Windows-Specific Adaptations
+
+APEX V4 deploys to a Windows VPS where the MT5 terminal runs natively.
+The following platform adaptations were made:
+
+| Linux Default | Windows Adaptation | Reason |
+|---|---|---|
+| `ipc://` ZMQ transport | `tcp://127.0.0.1:5559` | Windows does not support Unix domain sockets |
+| systemd process supervisor | NSSM (Non-Sucking Service Manager) | Windows service equivalent |
+| Redis | Memurai | Redis-compatible server for Windows |
+| `SIGTERM` shutdown | Ctrl+C via NSSM console stop | NSSM sends Ctrl+C first, then WM_CLOSE |
+| bash startup scripts | PowerShell (`nssm_install.ps1`) | Native Windows scripting |
+| `ProactorEventLoop` (default) | `SelectorEventLoop` (forced) | pyzmq requires `add_reader()` not available in Proactor |
+
+### 11.2 Environment Variable Strategy
+
+Secrets are loaded from two files by the NSSM installer:
+
+| File | Purpose |
+|---|---|
+| `config/secrets.env` | MT5 credentials, PostgreSQL password |
+| `ops/apex_v4.env` | Non-secret service configuration |
+
+Database connection resolution order:
+1. `APEX_DATABASE_URL` (full connection string)
+2. `POSTGRES_USER` + `POSTGRES_PASSWORD` + `POSTGRES_HOST` + `POSTGRES_PORT` + `POSTGRES_DB`
+3. Fallback to `postgresql://localhost:5432/apex_v4` (dev only, no auth)
+
+### 11.3 NSSM Exit Code Semantics
+
+| Exit Code | Meaning | NSSM Action |
+|---|---|---|
+| 0 | Clean shutdown (market close, manual stop) | Stay DOWN |
+| 42 | Kill switch SOFT/HARD | Stay DOWN |
+| 43 | Kill switch EMERGENCY | Stay DOWN |
+| Any other | Crash / unhandled error | RESTART after 10s |
+
+### 11.4 Observability Stack
+
+```
+APEX V4 (:8000/metrics) → Prometheus (:9090) → Grafana (:3000)
+                                     ↓
+                            alert_rules.yml
+                                     ↓
+                          Alertmanager (optional)
+```
+
+14 Prometheus metrics across 7 modules. Alert rules cover:
+- Kill switch triggers (all 3 levels)
+- Dead-man switch (pipeline stopped)
+- State drift detection
+- Risk threshold breaches (drawdown, VaR, condition number)
+- Performance degradation (latency, slippage)
+
+### 11.5 Operational Documents
+
+| Document | Purpose |
+|---|---|
+| `ops/RUNBOOK.md` | Complete operator runbook with procedures |
+| `ops/DEPLOYMENT_CHECKLIST.md` | Pre-deployment gate checklist |
+| `ops/INCIDENT_RESPONSE.md` | Incident response playbook (P0-P3) |
+| `ops/backup_db.ps1` | PostgreSQL backup with 30-day retention |
+| `ops/nssm_install.ps1` | NSSM service installer |
+| `ops/nssm_uninstall.ps1` | NSSM service uninstaller |
+
+---
+
 ## Appendix: Folder Structure
 
 ```
@@ -679,6 +748,7 @@ apex_v4/
 ├── APEX_V4_WORKFLOW_ORCHESTRATION.md
 ├── README.md
 ├── requirements.txt
+├── docker-compose.yml           ← observability stack (Prometheus + Grafana)
 ├── .gitignore
 ├── config/
 │   ├── settings.yaml
@@ -698,7 +768,10 @@ apex_v4/
 │   ├── market/
 │   │   ├── feed.py
 │   │   ├── validator.py
-│   │   └── schemas.py
+│   │   ├── schemas.py
+│   │   ├── mt5_client.py
+│   │   ├── mt5_factory.py
+│   │   └── mt5_types.py
 │   ├── features/
 │   │   ├── fabric.py
 │   │   └── state.py
@@ -719,20 +792,40 @@ apex_v4/
 │   │   ├── gateway.py
 │   │   └── fill_tracker.py
 │   ├── learning/
-│   │   ├── recorder.md
+│   │   ├── recorder.py
 │   │   └── updater.py
+│   ├── observability/
+│   │   ├── metrics.py           ← 14 Prometheus instruments
+│   │   └── logging.py           ← structlog JSON config + rotation
+│   ├── reporting/
+│   │   └── performance.py       ← pyfolio tearsheet generation
+│   ├── backtest/
+│   │   ├── data_gen.py
+│   │   └── phase2_backtest.py
 │   └── pipeline.py
 ├── tests/
-│   ├── unit/
+│   ├── unit/                    ← 700+ unit tests
 │   ├── integration/
 │   └── chaos/
 ├── db/
+│   ├── models.py                ← SQLAlchemy ORM (7 tables)
 │   └── migrations/
 ├── ops/
-│   ├── apex_v4.service
-│   └── prometheus.yml
+│   ├── RUNBOOK.md               ← operator runbook
+│   ├── DEPLOYMENT_CHECKLIST.md  ← pre-deployment gate checklist
+│   ├── INCIDENT_RESPONSE.md     ← incident response playbook (P0-P3)
+│   ├── nssm_install.ps1         ← NSSM service installer
+│   ├── nssm_uninstall.ps1       ← NSSM service uninstaller
+│   ├── backup_db.ps1            ← PostgreSQL backup script
+│   ├── apex_wrapper.py          ← graceful shutdown wrapper
+│   ├── apex_v4.env              ← non-secret service env vars
+│   ├── prometheus.yml           ← Prometheus scrape config
+│   ├── alert_rules.yml          ← Prometheus alerting rules
+│   ├── grafana_dashboard.json   ← Grafana dashboard (9 panels)
+│   └── grafana_provisioning/    ← auto-import datasource + dashboard
 └── scripts/
     ├── migrate_v3_data.py
+    ├── paper_sim.py             ← 7-C paper trading simulation
     └── backtrader_backtest.py
 ```
 
