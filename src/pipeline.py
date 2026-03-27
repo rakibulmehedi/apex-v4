@@ -981,6 +981,13 @@ async def _async_main() -> None:
 
 def main() -> None:
     """Sync entry point called by ``ops/apex_wrapper.py``."""
+    # Load secrets.env so DB creds and MT5 creds are available even when
+    # not running through NSSM (which injects them via AppEnvironmentExtra).
+    from dotenv import load_dotenv
+
+    secrets_path = Path(__file__).resolve().parent.parent / "config" / "secrets.env"
+    load_dotenv(secrets_path)
+
     # Configure structured logging before anything else
     from src.observability.logging import configure_logging
 
