@@ -1,5 +1,36 @@
 # APEX V4 — Active Task Plan
 
+## Session: 2026-03-29 — CI/CD Pipeline + v4.0.0 Release
+
+### Goal
+Create GitHub Actions CI/CD pipeline and tag official v4.0.0 production release.
+
+### Checklist
+- [x] Create .github/workflows/ci.yml (test + lint + risk-verify jobs)
+- [x] Create .github/workflows/release.yml (validate → release on v*.*.* tag)
+- [x] Commit CI/CD files and push to main
+- [x] Create annotated tag v4.0.0
+- [x] Push v4.0.0 tag → triggers release workflow on GitHub
+- [x] Verify CI and Release workflows in_progress on GitHub
+
+### Review
+**Built:** Two GitHub Actions workflows. `ci.yml` runs on every push/PR to main:
+Job 1 (test) installs TA-Lib + deps, runs 701 tests with mocked MT5, uploads junit XML.
+Job 2 (lint) runs ruff check + format --check on src/ and tests/.
+Job 3 (risk-verify, gated on test) runs test_engine.py + test_covariance.py + chaos/
+and writes a step-summary table.
+`release.yml` triggers on v*.*.* tags: validate gate (full test + risk-verify),
+then release job auto-generates changelog from git log, creates GitHub Release,
+and uploads 5 artifacts (requirements.txt, nssm_install.ps1, DEPLOYMENT_CHECKLIST.md,
+RUNBOOK.md, settings.yaml.template with secrets stripped).
+
+**v4.0.0 tag:** Created and pushed. Both workflows triggered on GitHub (in_progress).
+TA-Lib is installed via apt-get before pip. MT5 import is lazy-guarded in src — safe on Linux.
+
+**Status: COMPLETE**
+
+---
+
 ## Session: 2026-03-28 — Production Readiness Hardening
 
 ### Goal
