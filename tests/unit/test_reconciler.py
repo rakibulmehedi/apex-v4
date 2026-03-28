@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock
+import time
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -537,5 +538,54 @@ class TestRedisEdgeCases:
         rec = StateReconciler(mt5, redis, ks, sf)
 
         await rec._cycle()
+
+        assert ks.level == KillLevel.NONE
+
+
+# ── feed silence detection ────────────────────────────────────────────────
+
+
+class TestFeedSilence:
+    """MT5 feed silence detection during active/inactive sessions."""
+
+    @pytest.mark.asyncio
+    async def test_silence_during_active_session_triggers_emergency(self):
+        """Feed silent >300s during LONDON session → EMERGENCY."""
+        redis = FakeRedis()
+        mt5 = MagicMock()
+        mt5.positions_get.return_value = []
+
+        sf = _make_sqlite_sf()
+        ks = _make_kill_switch(redis=redis, sf=sf)
+        rec = StateReconciler(mt5, redis, ks, sf)
+
+        # Simulate last snapshot received 301 seconds ago.
+        rec._last_snapshot_received_at = time.monotonic() - 301
+
+        # Patch datetime to return an active-session UTC hour (10 = LONDON).
+        with patch("src.risk.reconciler.datetime") as mock_dt:
+            mock_dt.now.return_value.hour = 10
+            await rec._cycle()
+
+        assert ks.level == KillLevel.EMERGENCY
+
+    @pytest.mark.asyncio
+    async def test_silence_outside_active_session_no_action(self):
+        """Feed silent >300s during ASIA session (03:00 UTC) → no action."""
+        redis = FakeRedis()
+        mt5 = MagicMock()
+        mt5.positions_get.return_value = []
+
+        sf = _make_sqlite_sf()
+        ks = _make_kill_switch(redis=redis, sf=sf)
+        rec = StateReconciler(mt5, redis, ks, sf)
+
+        # Simulate last snapshot received 301 seconds ago.
+        rec._last_snapshot_received_at = time.monotonic() - 301
+
+        # Patch datetime to return an inactive-session UTC hour (3 = ASIA).
+        with patch("src.risk.reconciler.datetime") as mock_dt:
+            mock_dt.now.return_value.hour = 3
+            await rec._cycle()
 
         assert ks.level == KillLevel.NONE

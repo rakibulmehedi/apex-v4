@@ -16,7 +16,7 @@ import asyncio
 import os
 import time
 from datetime import datetime, timezone
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 
 import structlog
 import zmq
@@ -25,6 +25,9 @@ import zmq.asyncio
 from src.market.mt5_client import MT5Client
 from src.market.mt5_types import TIMEFRAME_MAP, RateBar
 from src.market.schemas import CandleMap, MarketSnapshot, OHLCV, TradingSession
+
+if TYPE_CHECKING:
+    from src.risk.reconciler import StateReconciler
 
 logger = structlog.get_logger(__name__)
 
@@ -89,11 +92,13 @@ class MarketFeed:
         *,
         zmq_addr: str = _DEFAULT_ZMQ_ADDR,
         poll_interval: float = _DEFAULT_POLL_SECONDS,
+        reconciler: StateReconciler | None = None,
     ) -> None:
         self._client = client
         self._pairs = list(pairs)
         self._zmq_addr = zmq_addr
         self._poll_interval = poll_interval
+        self._reconciler = reconciler
 
         # Last-seen bar open time per (pair, timeframe) — used for close
         # detection.  A change in the latest bar timestamp means the
@@ -256,6 +261,8 @@ class MarketFeed:
         payload = snapshot.model_dump_json()
         await self._zmq_socket.send_string(payload)
         self.snapshots_published += 1
+        if self._reconciler is not None:
+            self._reconciler.update_last_snapshot_time()
         logger.info(
             "snapshot published",
             pair=snapshot.pair,

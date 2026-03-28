@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 import structlog
@@ -42,6 +43,9 @@ _HEARTBEAT_SECONDS = 5
 
 # Redis key for last reconcile timestamp.
 _LAST_RECONCILE_KEY = "last_reconcile_ts"
+
+# Seconds of feed silence during an active session that triggers EMERGENCY.
+_FEED_SILENCE_SECONDS = 300
 
 
 class StateReconciler:
@@ -75,8 +79,15 @@ class StateReconciler:
         self._sf = session_factory
         self._heartbeat = heartbeat
         self._running = False
+        # Monotonic timestamp of the last successful MarketFeed snapshot publish.
+        # None means no snapshot has been received yet (skip silence check).
+        self._last_snapshot_received_at: float | None = None
 
     # ── public API ─────────────────────────────────────────────────
+
+    def update_last_snapshot_time(self) -> None:
+        """Record that MarketFeed just published a snapshot successfully."""
+        self._last_snapshot_received_at = time.monotonic()
 
     async def run(self) -> None:
         """Start the infinite reconciliation loop.
@@ -107,6 +118,9 @@ class StateReconciler:
     async def _cycle(self) -> None:
         """Execute one reconciliation heartbeat."""
         now_ms = int(time.time() * 1000)
+
+        # ── 0. feed silence check ──────────────────────────────────
+        await self._check_feed_silence()
 
         # ── 1. broker truth ────────────────────────────────────────
         broker_positions = self._mt5.positions_get()
@@ -194,6 +208,33 @@ class StateReconciler:
                 broker_count=len(broker_tickets),
                 timestamp_ms=now_ms,
             )
+
+    # ── feed silence detection ─────────────────────────────────────
+
+    async def _check_feed_silence(self) -> None:
+        """Trigger EMERGENCY if no snapshot received during an active session."""
+        if self._last_snapshot_received_at is None:
+            return
+
+        utc_hour = datetime.now(timezone.utc).hour
+        if not self._is_active_session(utc_hour):
+            return
+
+        silence_seconds = time.monotonic() - self._last_snapshot_received_at
+        if silence_seconds > _FEED_SILENCE_SECONDS:
+            logger.critical(
+                "mt5_feed_silence",
+                silence_seconds=int(silence_seconds),
+            )
+            await self._ks.trigger("EMERGENCY", "mt5_feed_silence")
+
+    @staticmethod
+    def _is_active_session(utc_hour: int) -> bool:
+        """Return True if utc_hour falls within LONDON, OVERLAP, or NY session.
+
+        LONDON  07-12, OVERLAP  12-16, NY  16-21 → combined: 07 ≤ hour < 21.
+        """
+        return 7 <= utc_hour < 21
 
     # ── DB write helper ────────────────────────────────────────────
 
