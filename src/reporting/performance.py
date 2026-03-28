@@ -7,6 +7,7 @@ portfolio-return Series, and generates pyfolio/empyrical analytics.
 Architecture ref: APEX_V4_STRATEGY.md Section 8, Phase 4.
 Library ref: pyfolio-reloaded 0.9.x, empyrical-reloaded 0.5.x.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -99,9 +100,7 @@ class PerformanceReporter:
         try:
             with self._sf() as db:  # type: Session
                 query = (
-                    db.query(TradeOutcome)
-                    .filter(and_(*filters) if filters else True)
-                    .order_by(TradeOutcome.closed_at.asc())
+                    db.query(TradeOutcome).filter(and_(*filters) if filters else True).order_by(TradeOutcome.closed_at.asc())
                 )
                 return query.all()
         except Exception:
@@ -111,7 +110,8 @@ class PerformanceReporter:
     # ── conversion ────────────────────────────────────────────────────
 
     def _outcomes_to_returns(
-        self, outcomes: list[TradeOutcome],
+        self,
+        outcomes: list[TradeOutcome],
     ) -> pd.Series:
         """Convert trade outcomes to a daily portfolio-return Series.
 
@@ -178,9 +178,7 @@ class PerformanceReporter:
         losses = int(np.sum(r_multiples <= 0))
         gross_profit = float(np.sum(r_multiples[r_multiples > 0]))
         gross_loss = float(np.abs(np.sum(r_multiples[r_multiples <= 0])))
-        profit_factor = (
-            gross_profit / gross_loss if gross_loss > 0 else float("inf")
-        )
+        profit_factor = gross_profit / gross_loss if gross_loss > 0 else float("inf")
 
         # empyrical portfolio-level stats.
         sharpe = ep.sharpe_ratio(returns)
@@ -239,15 +237,27 @@ class PerformanceReporter:
         table = monthly.unstack().round(6)
         table.index.name = "Year"
         table.columns = [
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
         ][: table.shape[1]]
         return table
 
     # ── rolling sharpe ────────────────────────────────────────────────
 
     def get_rolling_sharpe(
-        self, window: int = 63, **filters: Any,
+        self,
+        window: int = 63,
+        **filters: Any,
     ) -> pd.Series | None:
         """Return rolling Sharpe ratio (default 63 business days ≈ 3 months).
 

@@ -15,6 +15,7 @@ Tests cover:
   - Paper mode: correct FillRecord fields
   - Direction: LONG uses ask, SHORT uses bid
 """
+
 from __future__ import annotations
 
 import time
@@ -36,6 +37,7 @@ from src.market.schemas import (
 
 
 # ── fixtures ──────────────────────────────────────────────────────────────
+
 
 def _make_hypothesis(
     direction: Direction = Direction.LONG,
@@ -126,14 +128,20 @@ class TestPreflightKillSwitch:
     def test_kill_switch_active_rejects(self):
         gw = _make_gateway(ks_allows=False)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         assert result is None
 
     def test_kill_switch_inactive_passes(self):
         gw = _make_gateway(ks_allows=True, paper=True)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         assert result is not None
 
@@ -145,7 +153,10 @@ class TestPreflightDecision:
         gw = _make_gateway()
         decision = _make_decision(Decision.REJECT, final_size=0.0)
         result = gw.execute(
-            _make_hypothesis(), decision, 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            decision,
+            10_000.0,
+            _now_ms(),
         )
         assert result is None
 
@@ -153,7 +164,10 @@ class TestPreflightDecision:
         gw = _make_gateway()
         decision = _make_decision(Decision.REDUCE, final_size=0.005)
         result = gw.execute(
-            _make_hypothesis(), decision, 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            decision,
+            10_000.0,
+            _now_ms(),
         )
         assert result is None
 
@@ -168,7 +182,10 @@ class TestPreflightSize:
         # Actually, RiskDecision doesn't enforce size > 0 for APPROVE.
         # Gateway catches it.
         result = gw.execute(
-            _make_hypothesis(), decision, 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            decision,
+            10_000.0,
+            _now_ms(),
         )
         assert result is None
 
@@ -250,14 +267,20 @@ class TestPreflightStaleness:
         gw = _make_gateway()
         old_ts = _now_ms() - 3000  # 3 seconds ago
         result = gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, old_ts,
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            old_ts,
         )
         assert result is None
 
     def test_fresh_approval_passes(self):
         gw = _make_gateway(paper=True)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         assert result is not None
 
@@ -267,7 +290,10 @@ class TestPreflightStaleness:
         # Use a timestamp right at the boundary — give 50ms tolerance
         ts = _now_ms() - 1900
         result = gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, ts,
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            ts,
         )
         assert result is not None
 
@@ -282,8 +308,10 @@ class TestVolumeCalculation:
         """0.01 × 10_000 / 100_000 = 0.001 → clamped to 0.01."""
         gw = _make_gateway(paper=True)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(final_size=0.01),
-            10_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(final_size=0.01),
+            10_000.0,
+            _now_ms(),
         )
         assert result is not None
         assert result.requested_volume == 0.01  # min clamp
@@ -292,8 +320,10 @@ class TestVolumeCalculation:
         """0.02 × 1_000_000 / 100_000 = 0.2 lots."""
         gw = _make_gateway(paper=True)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(final_size=0.02),
-            1_000_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(final_size=0.02),
+            1_000_000.0,
+            _now_ms(),
         )
         assert result is not None
         assert result.requested_volume == 0.20
@@ -302,8 +332,10 @@ class TestVolumeCalculation:
         """Tiny size → clamped to 0.01."""
         gw = _make_gateway(paper=True)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(final_size=0.0001),
-            1_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(final_size=0.0001),
+            1_000.0,
+            _now_ms(),
         )
         assert result is not None
         assert result.requested_volume == 0.01
@@ -312,8 +344,10 @@ class TestVolumeCalculation:
         """Huge size → clamped to 100.0."""
         gw = _make_gateway(paper=True)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(final_size=0.02),
-            1_000_000_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(final_size=0.02),
+            1_000_000_000.0,
+            _now_ms(),
         )
         assert result is not None
         assert result.requested_volume == 100.0
@@ -322,8 +356,10 @@ class TestVolumeCalculation:
         """0.015 × 50_000 / 100_000 = 0.0075 → rounded to 0.01."""
         gw = _make_gateway(paper=True)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(final_size=0.015),
-            50_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(final_size=0.015),
+            50_000.0,
+            _now_ms(),
         )
         assert result is not None
         assert result.requested_volume == 0.01
@@ -340,7 +376,10 @@ class TestTickFailure:
         # Override the mock to return None
         gw._mt5.symbol_info_tick.return_value = None
         result = gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         assert result is None
 
@@ -356,7 +395,9 @@ class TestDirectionPricing:
         gw = _make_gateway(paper=True, tick=tick)
         result = gw.execute(
             _make_hypothesis(Direction.LONG),
-            _make_decision(), 10_000.0, _now_ms(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         assert result is not None
         assert result.fill_price == 1.08465
@@ -366,7 +407,9 @@ class TestDirectionPricing:
         gw = _make_gateway(paper=True, tick=tick)
         result = gw.execute(
             _make_hypothesis(Direction.SHORT),
-            _make_decision(), 10_000.0, _now_ms(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         assert result is not None
         assert result.fill_price == 1.08450
@@ -381,7 +424,10 @@ class TestPaperMode:
     def test_paper_fill_has_zero_slippage(self):
         gw = _make_gateway(paper=True)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         assert result is not None
         assert result.slippage_points == 0.0
@@ -389,7 +435,10 @@ class TestPaperMode:
     def test_paper_fill_is_paper_flag(self):
         gw = _make_gateway(paper=True)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         assert result is not None
         assert result.is_paper is True
@@ -397,14 +446,20 @@ class TestPaperMode:
     def test_paper_does_not_call_order_send(self):
         gw = _make_gateway(paper=True)
         gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         gw._mt5.order_send.assert_not_called()
 
     def test_paper_fill_price_equals_requested(self):
         gw = _make_gateway(paper=True)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         assert result is not None
         assert result.fill_price == result.requested_price
@@ -413,7 +468,9 @@ class TestPaperMode:
         gw = _make_gateway(paper=True)
         result = gw.execute(
             _make_hypothesis(direction=Direction.SHORT, strategy=Strategy.MOMENTUM),
-            _make_decision(), 10_000.0, _now_ms(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         assert result is not None
         assert result.pair == "EURUSD"
@@ -438,7 +495,10 @@ class TestLiveMode:
         )
         gw = _make_gateway(paper=False, order_result=order_result)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         assert result is not None
         assert isinstance(result, FillRecord)
@@ -454,7 +514,10 @@ class TestLiveMode:
         )
         gw = _make_gateway(paper=False, order_result=order_result)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         assert result is not None
         assert abs(result.slippage_points - 0.00005) < 1e-10
@@ -463,14 +526,20 @@ class TestLiveMode:
         order_result = _make_order_result(retcode=10004)  # REQUOTE
         gw = _make_gateway(paper=False, order_result=order_result)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         assert result is None
 
     def test_order_send_none_returns_none(self):
         gw = _make_gateway(paper=False, order_result=None)
         result = gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         assert result is None
 
@@ -478,7 +547,10 @@ class TestLiveMode:
         order_result = _make_order_result()
         gw = _make_gateway(paper=False, order_result=order_result)
         gw.execute(
-            _make_hypothesis(), _make_decision(), 10_000.0, _now_ms(),
+            _make_hypothesis(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         call_args = gw._mt5.order_send.call_args[0][0]
         assert call_args["action"] == 1
@@ -493,7 +565,9 @@ class TestLiveMode:
         gw = _make_gateway(paper=False, order_result=order_result)
         gw.execute(
             _make_hypothesis(Direction.SHORT),
-            _make_decision(), 10_000.0, _now_ms(),
+            _make_decision(),
+            10_000.0,
+            _now_ms(),
         )
         call_args = gw._mt5.order_send.call_args[0][0]
         assert call_args["type"] == 1  # SELL for SHORT
@@ -507,11 +581,17 @@ class TestFillRecord:
 
     def test_frozen(self):
         fill = FillRecord(
-            order_id=1, pair="EURUSD", direction="LONG",
-            strategy="MOMENTUM", regime="TRENDING_UP",
-            requested_price=1.08, fill_price=1.08,
-            requested_volume=0.01, filled_volume=0.01,
-            slippage_points=0.0, is_paper=True,
+            order_id=1,
+            pair="EURUSD",
+            direction="LONG",
+            strategy="MOMENTUM",
+            regime="TRENDING_UP",
+            requested_price=1.08,
+            fill_price=1.08,
+            requested_volume=0.01,
+            filled_volume=0.01,
+            slippage_points=0.0,
+            is_paper=True,
             filled_at_ms=1000,
         )
         with pytest.raises(AttributeError):
@@ -519,11 +599,17 @@ class TestFillRecord:
 
     def test_all_fields_present(self):
         fill = FillRecord(
-            order_id=1, pair="EURUSD", direction="LONG",
-            strategy="MOMENTUM", regime="TRENDING_UP",
-            requested_price=1.08, fill_price=1.08,
-            requested_volume=0.01, filled_volume=0.01,
-            slippage_points=0.0, is_paper=True,
+            order_id=1,
+            pair="EURUSD",
+            direction="LONG",
+            strategy="MOMENTUM",
+            regime="TRENDING_UP",
+            requested_price=1.08,
+            fill_price=1.08,
+            requested_volume=0.01,
+            filled_volume=0.01,
+            slippage_points=0.0,
+            is_paper=True,
             filled_at_ms=1000,
         )
         assert fill.order_id == 1

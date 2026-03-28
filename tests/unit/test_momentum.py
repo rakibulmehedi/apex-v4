@@ -7,6 +7,7 @@ Covers:
   - Setup score components (+10 H4, +10 ADX>30, +5 session, +5 spread)
   - Rejection conditions (regime, TF disagreement, R:R)
 """
+
 from __future__ import annotations
 
 import pytest
@@ -28,6 +29,7 @@ from src.alpha.momentum import MomentumEngine
 # ---------------------------------------------------------------------------
 # Helpers — build synthetic data
 # ---------------------------------------------------------------------------
+
 
 def _make_candles(count: int, close: float, trend: float = 0.0) -> list[OHLCV]:
     """Generate `count` candles around `close` with optional trend slope."""
@@ -95,9 +97,12 @@ def _make_fv(
 def _uptrend_snapshot(**kwargs) -> MarketSnapshot:
     """Snapshot where all TFs show uptrend (close > EMA20)."""
     defaults = dict(
-        h4_close=1.10000, h4_trend=0.00010,
-        h1_close=1.10000, h1_trend=0.00010,
-        m15_close=1.10000, m15_trend=0.00005,
+        h4_close=1.10000,
+        h4_trend=0.00010,
+        h1_close=1.10000,
+        h1_trend=0.00010,
+        m15_close=1.10000,
+        m15_trend=0.00005,
     )
     defaults.update(kwargs)
     return _make_snapshot(**defaults)
@@ -106,9 +111,12 @@ def _uptrend_snapshot(**kwargs) -> MarketSnapshot:
 def _downtrend_snapshot(**kwargs) -> MarketSnapshot:
     """Snapshot where all TFs show downtrend (close < EMA20)."""
     defaults = dict(
-        h4_close=1.10000, h4_trend=-0.00010,
-        h1_close=1.10000, h1_trend=-0.00010,
-        m15_close=1.10000, m15_trend=-0.00005,
+        h4_close=1.10000,
+        h4_trend=-0.00010,
+        h1_close=1.10000,
+        h1_trend=-0.00010,
+        m15_close=1.10000,
+        m15_trend=-0.00005,
     )
     defaults.update(kwargs)
     return _make_snapshot(**defaults)
@@ -117,6 +125,7 @@ def _downtrend_snapshot(**kwargs) -> MarketSnapshot:
 # ---------------------------------------------------------------------------
 # Regime gate
 # ---------------------------------------------------------------------------
+
 
 class TestRegimeGate:
     """Engine only fires on TRENDING_UP / TRENDING_DOWN."""
@@ -153,6 +162,7 @@ class TestRegimeGate:
 # ---------------------------------------------------------------------------
 # Multi-TF confirmation
 # ---------------------------------------------------------------------------
+
 
 class TestMultiTFConfirmation:
     """H4 EMA20 and H1 EMA20 must agree with direction."""
@@ -203,6 +213,7 @@ class TestMultiTFConfirmation:
 # ---------------------------------------------------------------------------
 # Entry zone, SL, TP
 # ---------------------------------------------------------------------------
+
 
 class TestEntryStopTP:
     """Verify ATR-based entry zone, stop loss, and take profit."""
@@ -283,6 +294,7 @@ class TestEntryStopTP:
 # Expected R
 # ---------------------------------------------------------------------------
 
+
 class TestExpectedR:
     """expected_R = TP distance / SL distance; reject if < 1.8."""
 
@@ -315,6 +327,7 @@ class TestExpectedR:
 # ---------------------------------------------------------------------------
 # Setup score components
 # ---------------------------------------------------------------------------
+
 
 class TestSetupScore:
     """Score: +10 H4 confirms, +10 ADX>30, +5 LONDON/OVERLAP, +5 spread<1pip."""
@@ -405,6 +418,7 @@ class TestSetupScore:
 # ---------------------------------------------------------------------------
 # Output shape
 # ---------------------------------------------------------------------------
+
 
 class TestOutputShape:
     """Verify AlphaHypothesis fields are correctly populated."""

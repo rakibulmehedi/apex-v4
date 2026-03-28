@@ -3,6 +3,7 @@
 Every test uses deterministic input data and verifies output against
 pre-computed TA-Lib reference values.  Redis is mocked.
 """
+
 from __future__ import annotations
 
 import time
@@ -23,6 +24,7 @@ from src.market.schemas import (
 
 
 # ── fixtures ─────────────────────────────────────────────────────────────
+
 
 def _make_ohlcv(o: float, h: float, l: float, c: float, v: float = 100.0) -> OHLCV:
     return OHLCV(open=o, high=h, low=l, close=c, volume=v)
@@ -107,6 +109,7 @@ _SINE_EMA = 1.10
 # Indicator accuracy — linear ramp
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestLinearRamp:
     """Verify each indicator against known output for a linear ramp."""
 
@@ -142,6 +145,7 @@ class TestLinearRamp:
 # Indicator accuracy — sinusoidal data
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestSinusoidal:
     """Different data shape → different indicator values."""
 
@@ -168,6 +172,7 @@ class TestSinusoidal:
 # Indicator with > 200 candles (extra depth)
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestExtraCandles:
     def test_250_candles_accepted(self):
         fabric = FeatureFabric(spread_max_points=0.00030)
@@ -179,6 +184,7 @@ class TestExtraCandles:
 # ═════════════════════════════════════════════════════════════════════════
 # ValueError on insufficient candles
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestInsufficientCandles:
     def test_199_candles_raises(self):
@@ -221,6 +227,7 @@ class TestInsufficientCandles:
 # spread_ok
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestSpreadOk:
     def test_spread_below_threshold(self):
         fabric = FeatureFabric(spread_max_points=0.00030)
@@ -247,6 +254,7 @@ class TestSpreadOk:
 # ═════════════════════════════════════════════════════════════════════════
 # news_blackout from Redis
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestNewsBlackout:
     def test_no_redis_returns_false(self):
@@ -282,6 +290,7 @@ class TestNewsBlackout:
 # Session passthrough
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestSessionPassthrough:
     def test_session_from_snapshot(self):
         fabric = FeatureFabric(spread_max_points=0.00030)
@@ -293,6 +302,7 @@ class TestSessionPassthrough:
 # ═════════════════════════════════════════════════════════════════════════
 # Pair + timestamp passthrough
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestPassthrough:
     def test_pair_preserved(self):

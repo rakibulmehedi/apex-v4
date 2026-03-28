@@ -10,6 +10,7 @@
 These tests use real SQLite DBs, real KillSwitch/Governor/Reconciler logic,
 and real EWMA covariance math.  Only MT5 and Redis are faked.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -74,6 +75,7 @@ CREATE TABLE reconciliation_log (
 
 # ── fake Redis ──────────────────────────────────────────────────────────────
 
+
 class FakeRedis:
     """Minimal in-memory Redis stand-in."""
 
@@ -91,6 +93,7 @@ class FakeRedis:
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────
+
 
 def _make_sqlite_sf(*ddls: str) -> sessionmaker:
     """Create an in-memory SQLite session factory with given DDL statements."""
@@ -116,8 +119,10 @@ def _fresh_snapshot() -> MarketSnapshot:
         pair="EURUSD",
         timestamp=int(time.time() * 1000),
         candles=CandleMap(
-            M5=_candles(50), M15=_candles(50),
-            H1=_candles(200), H4=_candles(50),
+            M5=_candles(50),
+            M15=_candles(50),
+            H1=_candles(200),
+            H4=_candles(50),
         ),
         spread_points=0.00015,
         session=TradingSession.LONDON,
@@ -129,8 +134,10 @@ def _stale_snapshot() -> MarketSnapshot:
         pair="EURUSD",
         timestamp=int(time.time() * 1000) - 10_000,
         candles=CandleMap(
-            M5=_candles(50), M15=_candles(50),
-            H1=_candles(200), H4=_candles(50),
+            M5=_candles(50),
+            M15=_candles(50),
+            H1=_candles(200),
+            H4=_candles(50),
         ),
         spread_points=0.00015,
         session=TradingSession.LONDON,
@@ -185,6 +192,7 @@ def _make_position(
 # Test 1 — Kill switch survives restart
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestKillSwitchSurvivesRestart:
     """Trigger HARD → simulate process restart → verify HARD persists."""
 
@@ -225,6 +233,7 @@ class TestKillSwitchSurvivesRestart:
 # Test 2 — State drift halts trading
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestStateDriftHaltsTrading:
     """3 positions in Redis, broker has only 2 → HARD triggered."""
 
@@ -236,12 +245,9 @@ class TestStateDriftHaltsTrading:
 
         # ── Redis has 3 positions ───────────────────────────────────
         redis_positions = [
-            {"ticket": 1001, "pair": "EURUSD", "type": 0, "volume": 0.1,
-             "price_open": 1.1, "profit": 10.0},
-            {"ticket": 1002, "pair": "GBPUSD", "type": 0, "volume": 0.1,
-             "price_open": 1.25, "profit": 5.0},
-            {"ticket": 1003, "pair": "USDJPY", "type": 1, "volume": 0.1,
-             "price_open": 150.0, "profit": -2.0},
+            {"ticket": 1001, "pair": "EURUSD", "type": 0, "volume": 0.1, "price_open": 1.1, "profit": 10.0},
+            {"ticket": 1002, "pair": "GBPUSD", "type": 0, "volume": 0.1, "price_open": 1.25, "profit": 5.0},
+            {"ticket": 1003, "pair": "USDJPY", "type": 1, "volume": 0.1, "price_open": 150.0, "profit": -2.0},
         ]
         redis.set("open_positions", json.dumps(redis_positions))
 
@@ -277,6 +283,7 @@ class TestStateDriftHaltsTrading:
 # ═══════════════════════════════════════════════════════════════════════════
 # Test 3 — Correlation crisis zeros position
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestCorrelationCrisisZerosPosition:
     """EWMA covariance with κ > 30 → Φ(κ) = 0.0 → HARD + REJECT."""
@@ -331,6 +338,7 @@ class TestCorrelationCrisisZerosPosition:
 # Test 4 — Fail-fast on Gate 1
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestFailFastGate1:
     """Kill switch SOFT → evaluate rejects at Gate 1, not Gate 2."""
 
@@ -371,6 +379,7 @@ class TestFailFastGate1:
 # ═══════════════════════════════════════════════════════════════════════════
 # Test 5 — Drawdown hard stop
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestDrawdownHardStop:
     """DD=9% → HARD + REJECT, and kill switch blocks even after DD passes."""

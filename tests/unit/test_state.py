@@ -3,6 +3,7 @@
 Redis is mocked via fakeredis.  SQLAlchemy is mocked via unittest.mock.
 No real connections to Redis or PostgreSQL.
 """
+
 from __future__ import annotations
 
 import json
@@ -17,6 +18,7 @@ from src.market.schemas import FeatureVector, TradingSession
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
+
 
 def _make_fv(**overrides) -> FeatureVector:
     base = {
@@ -85,6 +87,7 @@ class FakeRedis:
 # RedisStateManager — feature vectors
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestRedisFeatureVector:
     def test_store_and_get_roundtrip(self):
         r = FakeRedis()
@@ -148,6 +151,7 @@ class TestRedisFeatureVector:
 # RedisStateManager — open positions
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestRedisOpenPositions:
     def test_store_and_get_roundtrip(self):
         r = FakeRedis()
@@ -189,6 +193,7 @@ class TestRedisOpenPositions:
 # RedisStateManager — kill switch
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestRedisKillSwitch:
     def test_set_and_get(self):
         r = FakeRedis()
@@ -226,6 +231,7 @@ class TestRedisKillSwitch:
 # RedisStateManager — news blackout
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestRedisNewsBlackout:
     def test_set_active(self):
         r = FakeRedis()
@@ -258,6 +264,7 @@ class TestRedisNewsBlackout:
 # RedisStateManager — env var constructor
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestRedisFromEnv:
     def test_default_url(self):
         """Without APEX_REDIS_URL, defaults to localhost:6379/0."""
@@ -266,7 +273,8 @@ class TestRedisFromEnv:
                 mock_from_url.return_value = FakeRedis()
                 mgr = RedisStateManager()
                 mock_from_url.assert_called_once_with(
-                    "redis://localhost:6379/0", decode_responses=True,
+                    "redis://localhost:6379/0",
+                    decode_responses=True,
                 )
 
     def test_custom_url(self):
@@ -275,13 +283,15 @@ class TestRedisFromEnv:
                 mock_from_url.return_value = FakeRedis()
                 mgr = RedisStateManager()
                 mock_from_url.assert_called_once_with(
-                    "redis://myhost:1234/5", decode_responses=True,
+                    "redis://myhost:1234/5",
+                    decode_responses=True,
                 )
 
 
 # ═════════════════════════════════════════════════════════════════════════
 # PostgresWriter — feature vector
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestPostgresWriteFeatureVector:
     @pytest.mark.asyncio
@@ -315,6 +325,7 @@ class TestPostgresWriteFeatureVector:
 # PostgresWriter — trade outcome
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestPostgresWriteTradeOutcome:
     @pytest.mark.asyncio
     async def test_writes_row(self):
@@ -345,6 +356,7 @@ class TestPostgresWriteTradeOutcome:
 # PostgresWriter — kill switch event
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestPostgresWriteKillSwitch:
     @pytest.mark.asyncio
     async def test_writes_row(self):
@@ -374,6 +386,7 @@ class TestPostgresWriteKillSwitch:
 # ═════════════════════════════════════════════════════════════════════════
 # PostgresWriter — env var constructor
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestPostgresFromEnv:
     def test_uses_apex_database_url(self):

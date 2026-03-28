@@ -8,6 +8,7 @@ candle closes — not static.
 Input:  H1 close prices (numpy array)
 Output: Filtered state estimates (numpy array, same length)
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -61,7 +62,7 @@ def kalman_smooth(closes: np.ndarray, q: float = _DEFAULT_Q) -> np.ndarray:
     kf.P = np.array([[1.0]])
 
     # Initial measurement noise from first available window.
-    initial_var = np.var(closes[:min(_R_WINDOW, n)])
+    initial_var = np.var(closes[: min(_R_WINDOW, n)])
     kf.R = np.array([[max(initial_var, 1e-10)]])
 
     states = np.empty(n, dtype=np.float64)

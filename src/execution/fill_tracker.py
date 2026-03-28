@@ -9,6 +9,7 @@ On close: calculates R-multiple and returns outcome dict for the recorder.
 
 Architecture ref: APEX_V4_STRATEGY.md Section 5, Phase 4 (P4.2)
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -57,7 +58,8 @@ class FillTracker:
             The ``fills.id`` primary key on success, None on DB error.
         """
         filled_at = datetime.fromtimestamp(
-            fill.filled_at_ms / 1000.0, tz=timezone.utc,
+            fill.filled_at_ms / 1000.0,
+            tz=timezone.utc,
         )
 
         try:
@@ -175,7 +177,8 @@ class FillTracker:
         won = r_multiple > 0
 
         closed_at = datetime.fromtimestamp(
-            close_time_ms / 1000.0, tz=timezone.utc,
+            close_time_ms / 1000.0,
+            tz=timezone.utc,
         )
 
         outcome = {

@@ -5,6 +5,7 @@ Covers:
   - make_engine() — pool settings
   - configure_logging() — structlog setup
 """
+
 from __future__ import annotations
 
 import logging
@@ -24,11 +25,14 @@ class TestGetDatabaseUrl:
         """APEX_DATABASE_URL env var is used when set."""
         from db.models import get_database_url
 
-        with patch.dict(os.environ, {
-            "APEX_DATABASE_URL": "postgresql://user:pass@db:5432/apex",
-            "POSTGRES_USER": "other",
-            "POSTGRES_PASSWORD": "other",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "APEX_DATABASE_URL": "postgresql://user:pass@db:5432/apex",
+                "POSTGRES_USER": "other",
+                "POSTGRES_PASSWORD": "other",
+            },
+        ):
             assert get_database_url() == "postgresql://user:pass@db:5432/apex"
 
     def test_postgres_vars_assembled(self):

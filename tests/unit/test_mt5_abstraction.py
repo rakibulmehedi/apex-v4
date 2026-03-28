@@ -4,6 +4,7 @@ tests/unit/test_mt5_abstraction.py — Unit tests for the MT5 abstraction layer.
 Covers: mt5_types, mt5_client ABC, mt5_stub, mt5_factory.
 All tests run on macOS — no real MT5 connection needed.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -26,16 +27,28 @@ from src.market.mt5_types import (
 class TestMT5Types:
     def test_account_info_fields(self) -> None:
         info = AccountInfo(
-            login=123, server="Test", balance=10_000.0, equity=10_000.0,
-            margin=0.0, margin_free=10_000.0, margin_level=0.0, currency="USD",
+            login=123,
+            server="Test",
+            balance=10_000.0,
+            equity=10_000.0,
+            margin=0.0,
+            margin_free=10_000.0,
+            margin_level=0.0,
+            currency="USD",
         )
         assert info.equity == 10_000.0
         assert info.currency == "USD"
 
     def test_account_info_is_frozen(self) -> None:
         info = AccountInfo(
-            login=1, server="S", balance=0, equity=0,
-            margin=0, margin_free=0, margin_level=0, currency="USD",
+            login=1,
+            server="S",
+            balance=0,
+            equity=0,
+            margin=0,
+            margin_free=0,
+            margin_level=0,
+            currency="USD",
         )
         with pytest.raises(AttributeError):
             info.equity = 999  # type: ignore[misc]
@@ -47,16 +60,27 @@ class TestMT5Types:
 
     def test_order_result_fields(self) -> None:
         result = OrderResult(
-            retcode=TRADE_RETCODE_DONE, order=1, deal=2,
-            volume=0.01, price=1.08, comment="ok",
+            retcode=TRADE_RETCODE_DONE,
+            order=1,
+            deal=2,
+            volume=0.01,
+            price=1.08,
+            comment="ok",
         )
         assert result.retcode == TRADE_RETCODE_DONE
 
     def test_position_fields(self) -> None:
         pos = Position(
-            ticket=1, symbol="EURUSD", type=0, volume=0.01,
-            price_open=1.08, price_current=1.09, sl=1.07, tp=1.10,
-            profit=10.0, comment="",
+            ticket=1,
+            symbol="EURUSD",
+            type=0,
+            volume=0.01,
+            price_open=1.08,
+            price_current=1.09,
+            sl=1.07,
+            tp=1.10,
+            profit=10.0,
+            comment="",
         )
         assert pos.symbol == "EURUSD"
         assert pos.profit == 10.0
@@ -173,6 +197,7 @@ class TestMT5Factory:
 
     def test_real_mode_returns_real_client(self) -> None:
         from src.market.mt5_real import RealMT5Client
+
         client = get_mt5_client(mode="real")
         assert isinstance(client, RealMT5Client)
 

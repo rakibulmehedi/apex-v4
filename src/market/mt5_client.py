@@ -5,6 +5,7 @@ Every module that needs MT5 depends on this interface, never on the
 MetaTrader5 library directly.  The concrete implementation is selected
 at startup via mt5_factory.get_mt5_client().
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -42,7 +43,11 @@ class MT5Client(ABC):
 
     @abstractmethod
     def copy_rates_from_pos(
-        self, symbol: str, timeframe: int, start_pos: int, count: int,
+        self,
+        symbol: str,
+        timeframe: int,
+        start_pos: int,
+        count: int,
     ) -> list[RateBar] | None:
         """Return *count* bars ending at *start_pos* (0 = current).
 

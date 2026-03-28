@@ -7,6 +7,7 @@ Tests cover:
   - Portfolio VaR (Section 7.5)
   - Edge cases: single pair, identity, zero returns
 """
+
 from __future__ import annotations
 
 from math import exp, sqrt
@@ -21,6 +22,7 @@ PAIRS = ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"]
 
 
 # ── EWMA update ──────────────────────────────────────────────────────────
+
 
 class TestEWMAUpdate:
     """Verify Σ_t = λ × Σ_{t-1} + (1-λ) × (r_t × r_t^T)."""
@@ -99,6 +101,7 @@ class TestEWMAUpdate:
 
 # ── eigenvalue shrinkage ─────────────────────────────────────────────────
 
+
 class TestEigenvalueShrinkage:
     """Verify shrinkage when κ > κ_warn (15.0)."""
 
@@ -163,6 +166,7 @@ class TestEigenvalueShrinkage:
 
 # ── condition number ─────────────────────────────────────────────────────
 
+
 class TestConditionNumber:
     """κ = max_eigenvalue / max(min_eigenvalue, 1e-8)."""
 
@@ -187,6 +191,7 @@ class TestConditionNumber:
 
 
 # ── decay multiplier Φ(κ) ────────────────────────────────────────────────
+
 
 class TestDecayMultiplier:
     """Φ(κ): 1.0 if κ≤15, exp(-0.5×(κ-15)) if 15<κ<30, 0.0 if κ≥30."""
@@ -241,6 +246,7 @@ class TestDecayMultiplier:
 
 
 # ── Portfolio VaR (Section 7.5) ──────────────────────────────────────────
+
 
 class TestPortfolioVaR:
     """VaR_99 = 2.326 × sqrt(W^T × Σ_reg × W) × portfolio_value."""
@@ -324,6 +330,7 @@ class TestPortfolioVaR:
 
 
 # ── properties and construction ──────────────────────────────────────────
+
 
 class TestConstruction:
     """Constructor, properties, and edge cases."""

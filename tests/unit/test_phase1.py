@@ -10,6 +10,7 @@ Verifies the complete Phase 1 pipeline:
   P1.5  PostgreSQL WAL write called (mocked DB)
   E2E   MarketSnapshot → FeatureVector → Redis + PostgreSQL
 """
+
 from __future__ import annotations
 
 import json
@@ -33,6 +34,7 @@ from src.market.schemas import (
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
+
 
 def _make_ohlcv(o: float, h: float, l: float, c: float, v: float = 100.0) -> OHLCV:
     return OHLCV(open=o, high=h, low=l, close=c, volume=v)
@@ -116,6 +118,7 @@ _LINEAR_BB_LOWER = 1.1177967437
 # P1.2 — Pydantic schema validation
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestSchemaValidation:
     """Verify Pydantic schemas accept valid data and reject invalid data."""
 
@@ -174,6 +177,7 @@ class TestSchemaValidation:
 # P1.4 — TA-Lib indicator verification vs known values
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestATRKnownValues:
     def test_atr_matches_reference(self):
         fabric = FeatureFabric(spread_max_points=0.00030)
@@ -231,6 +235,7 @@ class TestBollingerBandsKnownValues:
 # P1.4 — FeatureVector populates correctly
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestFeatureVectorPopulation:
     def test_pair_passthrough(self):
         fabric = FeatureFabric(spread_max_points=0.00030)
@@ -275,6 +280,7 @@ class TestFeatureVectorPopulation:
 # P1.5 — Redis TTL keys set correctly (mocked Redis)
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestRedisFeatureVectorTTL:
     def test_fv_key_format(self):
         r = FakeRedis()
@@ -282,9 +288,15 @@ class TestRedisFeatureVectorTTL:
         fv = FeatureVector(
             pair="EURUSD",
             timestamp=int(time.time() * 1000),
-            atr_14=0.002, adx_14=28.0, ema_200=1.10,
-            bb_upper=1.12, bb_lower=1.08, bb_mid=1.10,
-            session="LONDON", spread_ok=True, news_blackout=False,
+            atr_14=0.002,
+            adx_14=28.0,
+            ema_200=1.10,
+            bb_upper=1.12,
+            bb_lower=1.08,
+            bb_mid=1.10,
+            session="LONDON",
+            spread_ok=True,
+            news_blackout=False,
         )
         mgr.store_feature_vector(fv)
         assert r.exists_key("fv:EURUSD")
@@ -295,9 +307,15 @@ class TestRedisFeatureVectorTTL:
         fv = FeatureVector(
             pair="EURUSD",
             timestamp=int(time.time() * 1000),
-            atr_14=0.002, adx_14=28.0, ema_200=1.10,
-            bb_upper=1.12, bb_lower=1.08, bb_mid=1.10,
-            session="LONDON", spread_ok=True, news_blackout=False,
+            atr_14=0.002,
+            adx_14=28.0,
+            ema_200=1.10,
+            bb_upper=1.12,
+            bb_lower=1.08,
+            bb_mid=1.10,
+            session="LONDON",
+            spread_ok=True,
+            news_blackout=False,
         )
         mgr.store_feature_vector(fv)
         assert r.ttl_of("fv:EURUSD") == 300
@@ -308,9 +326,15 @@ class TestRedisFeatureVectorTTL:
         fv = FeatureVector(
             pair="EURUSD",
             timestamp=int(time.time() * 1000),
-            atr_14=0.002, adx_14=28.0, ema_200=1.10,
-            bb_upper=1.12, bb_lower=1.08, bb_mid=1.10,
-            session="LONDON", spread_ok=True, news_blackout=False,
+            atr_14=0.002,
+            adx_14=28.0,
+            ema_200=1.10,
+            bb_upper=1.12,
+            bb_lower=1.08,
+            bb_mid=1.10,
+            session="LONDON",
+            spread_ok=True,
+            news_blackout=False,
         )
         mgr.store_feature_vector(fv)
         got = mgr.get_feature_vector("EURUSD")
@@ -360,6 +384,7 @@ class TestRedisNewsBlackoutTTL:
 # P1.5 — PostgreSQL WAL write called (mocked DB)
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestPostgresFeatureVectorWrite:
     @pytest.mark.asyncio
     async def test_write_fv_calls_add_and_commit(self):
@@ -372,9 +397,15 @@ class TestPostgresFeatureVectorWrite:
         fv = FeatureVector(
             pair="EURUSD",
             timestamp=int(time.time() * 1000),
-            atr_14=0.002, adx_14=28.0, ema_200=1.10,
-            bb_upper=1.12, bb_lower=1.08, bb_mid=1.10,
-            session="LONDON", spread_ok=True, news_blackout=False,
+            atr_14=0.002,
+            adx_14=28.0,
+            ema_200=1.10,
+            bb_upper=1.12,
+            bb_lower=1.08,
+            bb_mid=1.10,
+            session="LONDON",
+            spread_ok=True,
+            news_blackout=False,
         )
         await pw.write_feature_vector(fv)
 
@@ -391,9 +422,15 @@ class TestPostgresFeatureVectorWrite:
         fv = FeatureVector(
             pair="EURUSD",
             timestamp=int(time.time() * 1000),
-            atr_14=0.002, adx_14=28.0, ema_200=1.10,
-            bb_upper=1.12, bb_lower=1.08, bb_mid=1.10,
-            session="LONDON", spread_ok=True, news_blackout=False,
+            atr_14=0.002,
+            adx_14=28.0,
+            ema_200=1.10,
+            bb_upper=1.12,
+            bb_lower=1.08,
+            bb_mid=1.10,
+            session="LONDON",
+            spread_ok=True,
+            news_blackout=False,
         )
         # Must not raise
         await pw.write_feature_vector(fv)
@@ -410,12 +447,18 @@ class TestPostgresTradeOutcomeWrite:
         pw = PostgresWriter(session_factory=sf)
         now = datetime.now(timezone.utc)
         outcome = {
-            "pair": "EURUSD", "strategy": "MOMENTUM",
-            "regime": "TRENDING_UP", "session": "LONDON",
-            "direction": "LONG", "entry_price": 1.0950,
-            "exit_price": 1.1000, "r_multiple": 2.5,
-            "won": True, "fill_id": None,
-            "opened_at": now, "closed_at": now,
+            "pair": "EURUSD",
+            "strategy": "MOMENTUM",
+            "regime": "TRENDING_UP",
+            "session": "LONDON",
+            "direction": "LONG",
+            "entry_price": 1.0950,
+            "exit_price": 1.1000,
+            "r_multiple": 2.5,
+            "won": True,
+            "fill_id": None,
+            "opened_at": now,
+            "closed_at": now,
         }
         await pw.write_trade_outcome(outcome)
 
@@ -444,6 +487,7 @@ class TestPostgresKillSwitchWrite:
 # ═════════════════════════════════════════════════════════════════════════
 # End-to-end: MarketSnapshot → FeatureVector → Redis + PostgreSQL
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestEndToEndPipeline:
     """Full P1 pipeline: snapshot → fabric → state layer."""

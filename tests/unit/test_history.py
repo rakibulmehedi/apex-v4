@@ -4,6 +4,7 @@ Uses an in-memory SQLite database so the actual SQL aggregation logic
 (COUNT, AVG, filtering, 90-day window) is exercised without needing
 a real PostgreSQL server.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -90,6 +91,7 @@ def _seed_outcomes(pdb: PerformanceDatabase, outcomes: list[dict]) -> None:
 # get_segment_stats — minimum trade gate
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestSegmentMinimumGate:
     def test_returns_none_when_zero_trades(self):
         sf = _make_sqlite_session_factory()
@@ -128,6 +130,7 @@ class TestSegmentMinimumGate:
 # get_segment_stats — win rate calculation
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestSegmentWinRate:
     def test_all_wins(self):
         sf = _make_sqlite_session_factory()
@@ -141,10 +144,7 @@ class TestSegmentWinRate:
     def test_all_losses(self):
         sf = _make_sqlite_session_factory()
         pdb = PerformanceDatabase(session_factory=sf)
-        outcomes = [
-            _make_outcome(won=False, r_multiple=-1.0, days_ago=i)
-            for i in range(30)
-        ]
+        outcomes = [_make_outcome(won=False, r_multiple=-1.0, days_ago=i) for i in range(30)]
         _seed_outcomes(pdb, outcomes)
         result = pdb.get_segment_stats("MOMENTUM", "TRENDING_UP", "LONDON")
         assert result is not None
@@ -154,10 +154,9 @@ class TestSegmentWinRate:
         sf = _make_sqlite_session_factory()
         pdb = PerformanceDatabase(session_factory=sf)
         # 20 wins, 10 losses → 66.67% win rate
-        outcomes = (
-            [_make_outcome(won=True, days_ago=i) for i in range(20)]
-            + [_make_outcome(won=False, r_multiple=-1.0, days_ago=20 + i) for i in range(10)]
-        )
+        outcomes = [_make_outcome(won=True, days_ago=i) for i in range(20)] + [
+            _make_outcome(won=False, r_multiple=-1.0, days_ago=20 + i) for i in range(10)
+        ]
         _seed_outcomes(pdb, outcomes)
         result = pdb.get_segment_stats("MOMENTUM", "TRENDING_UP", "LONDON")
         assert result is not None
@@ -167,10 +166,9 @@ class TestSegmentWinRate:
         sf = _make_sqlite_session_factory()
         pdb = PerformanceDatabase(session_factory=sf)
         # 15 trades at R=2.0, 15 trades at R=-1.0 → avg = 0.5
-        outcomes = (
-            [_make_outcome(won=True, r_multiple=2.0, days_ago=i) for i in range(15)]
-            + [_make_outcome(won=False, r_multiple=-1.0, days_ago=15 + i) for i in range(15)]
-        )
+        outcomes = [_make_outcome(won=True, r_multiple=2.0, days_ago=i) for i in range(15)] + [
+            _make_outcome(won=False, r_multiple=-1.0, days_ago=15 + i) for i in range(15)
+        ]
         _seed_outcomes(pdb, outcomes)
         result = pdb.get_segment_stats("MOMENTUM", "TRENDING_UP", "LONDON")
         assert result is not None
@@ -180,6 +178,7 @@ class TestSegmentWinRate:
 # ═════════════════════════════════════════════════════════════════════════
 # get_segment_stats — 90-day rolling window
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestSegment90DayWindow:
     def test_excludes_old_trades(self):
@@ -209,6 +208,7 @@ class TestSegment90DayWindow:
 # ═════════════════════════════════════════════════════════════════════════
 # get_segment_stats — segment isolation
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestSegmentIsolation:
     def test_different_strategy_not_counted(self):
@@ -245,6 +245,7 @@ class TestSegmentIsolation:
 # ═════════════════════════════════════════════════════════════════════════
 # get_segment_stats — return fields
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestSegmentReturnFields:
     def test_all_keys_present(self):
@@ -283,6 +284,7 @@ class TestSegmentReturnFields:
 # update_segment
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestUpdateSegment:
     def test_inserts_one_row(self):
         sf = _make_sqlite_session_factory()
@@ -304,6 +306,7 @@ class TestUpdateSegment:
     def test_error_does_not_crash(self):
         """DB error should be logged, not raised."""
         from unittest.mock import MagicMock
+
         sf = MagicMock(side_effect=Exception("connection refused"))
         pdb = PerformanceDatabase(session_factory=sf)
         # Must not raise
@@ -313,6 +316,7 @@ class TestUpdateSegment:
 # ═════════════════════════════════════════════════════════════════════════
 # bootstrap_from_v3
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestBootstrapFromV3:
     def test_imports_all_records(self):
@@ -348,6 +352,7 @@ class TestBootstrapFromV3:
 
     def test_error_returns_zero(self):
         from unittest.mock import MagicMock
+
         sf = MagicMock(side_effect=Exception("disk full"))
         pdb = PerformanceDatabase(session_factory=sf)
         assert pdb.bootstrap_from_v3([_make_outcome()]) == 0
@@ -369,9 +374,11 @@ class TestBootstrapFromV3:
 # get_segment_stats — error handling
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestSegmentErrorHandling:
     def test_db_error_returns_none(self):
         from unittest.mock import MagicMock
+
         sf = MagicMock(side_effect=Exception("connection lost"))
         pdb = PerformanceDatabase(session_factory=sf)
         result = pdb.get_segment_stats("MOMENTUM", "TRENDING_UP", "LONDON")

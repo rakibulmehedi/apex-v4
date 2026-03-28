@@ -8,6 +8,7 @@ Generates realistic price data with regime-switching dynamics:
 
 Used for Phase 2 backtest validation (P2.8).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -104,14 +105,16 @@ def generate_eurusd_h1(
         l = min(o, c) - rng.uniform(0, bar_range * 0.5)
         vol = int(rng.integers(80, 400))
 
-        candles.append(SyntheticCandle(
-            timestamp=ts,
-            open=round(o, 5),
-            high=round(h, 5),
-            low=round(l, 5),
-            close=round(c, 5),
-            volume=vol,
-        ))
+        candles.append(
+            SyntheticCandle(
+                timestamp=ts,
+                open=round(o, 5),
+                high=round(h, 5),
+                low=round(l, 5),
+                close=round(c, 5),
+                volume=vol,
+            )
+        )
         ts += timedelta(hours=1)
 
     return candles

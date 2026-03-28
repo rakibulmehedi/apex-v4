@@ -5,6 +5,7 @@ and human-readable output for development.
 
 Must be called once at startup before any logger is used.
 """
+
 from __future__ import annotations
 
 import logging

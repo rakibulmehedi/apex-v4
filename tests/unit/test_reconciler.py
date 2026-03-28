@@ -11,6 +11,7 @@ Tests cover:
   - last_reconcile_ts updated every cycle
   - Loop runs multiple cycles and can be stopped
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -135,6 +136,7 @@ def _make_reconciler(
 
 # ── clean cycle ──────────────────────────────────────────────────────────
 
+
 class TestCleanCycle:
     """No mismatch — positions match, no kill switch triggered."""
 
@@ -212,16 +214,22 @@ class TestCleanCycle:
 
 # ── phantom positions ────────────────────────────────────────────────────
 
+
 class TestPhantomPositions:
     """In Redis but NOT in broker → state_drift → HARD."""
 
     @pytest.mark.asyncio
     async def test_phantom_triggers_hard(self):
         redis = FakeRedis()
-        redis.set("open_positions", json.dumps([
-            {"ticket": 1001, "pair": "EURUSD"},
-            {"ticket": 9999, "pair": "PHANTOM"},
-        ]))
+        redis.set(
+            "open_positions",
+            json.dumps(
+                [
+                    {"ticket": 1001, "pair": "EURUSD"},
+                    {"ticket": 9999, "pair": "PHANTOM"},
+                ]
+            ),
+        )
 
         mt5 = MagicMock()
         mt5.positions_get.return_value = [_make_position(ticket=1001)]
@@ -238,10 +246,15 @@ class TestPhantomPositions:
     async def test_phantom_redis_reconciled_to_broker(self):
         """After phantom detection, Redis matches broker (broker wins)."""
         redis = FakeRedis()
-        redis.set("open_positions", json.dumps([
-            {"ticket": 1001, "pair": "EURUSD"},
-            {"ticket": 9999, "pair": "PHANTOM"},
-        ]))
+        redis.set(
+            "open_positions",
+            json.dumps(
+                [
+                    {"ticket": 1001, "pair": "EURUSD"},
+                    {"ticket": 9999, "pair": "PHANTOM"},
+                ]
+            ),
+        )
 
         mt5 = MagicMock()
         mt5.positions_get.return_value = [_make_position(ticket=1001)]
@@ -259,6 +272,7 @@ class TestPhantomPositions:
 
 
 # ── ghost positions ──────────────────────────────────────────────────────
+
 
 class TestGhostPositions:
     """In broker but NOT in Redis → state_drift → HARD."""
@@ -303,8 +317,8 @@ class TestGhostPositions:
 
 # ── mixed phantom + ghost ────────────────────────────────────────────────
 
-class TestMixedDrift:
 
+class TestMixedDrift:
     @pytest.mark.asyncio
     async def test_phantom_and_ghost_triggers_hard(self):
         """Both phantom and ghost in same cycle → HARD."""
@@ -329,6 +343,7 @@ class TestMixedDrift:
 
 
 # ── broker disconnect ────────────────────────────────────────────────────
+
 
 class TestBrokerDisconnect:
     """positions_get() returns None → EMERGENCY."""
@@ -369,6 +384,7 @@ class TestBrokerDisconnect:
 
 # ── reconciler failure ───────────────────────────────────────────────────
 
+
 class TestReconcilerFailure:
     """Loop body exception → EMERGENCY, loop continues."""
 
@@ -398,8 +414,8 @@ class TestReconcilerFailure:
 
 # ── reconciliation_log DB write ──────────────────────────────────────────
 
-class TestReconciliationLog:
 
+class TestReconciliationLog:
     @pytest.mark.asyncio
     async def test_mismatch_writes_log_row(self):
         redis = FakeRedis()
@@ -439,8 +455,8 @@ class TestReconciliationLog:
 
 # ── loop lifecycle ───────────────────────────────────────────────────────
 
-class TestLoopLifecycle:
 
+class TestLoopLifecycle:
     @pytest.mark.asyncio
     async def test_stop_terminates_loop(self):
         """rec.stop() cleanly exits the run() loop."""
@@ -491,8 +507,8 @@ class TestLoopLifecycle:
 
 # ── redis expired / missing ──────────────────────────────────────────────
 
-class TestRedisEdgeCases:
 
+class TestRedisEdgeCases:
     @pytest.mark.asyncio
     async def test_redis_missing_positions_key(self):
         """Redis has no open_positions → treated as empty list."""

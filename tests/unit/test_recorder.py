@@ -6,6 +6,7 @@ Tests cover:
   - record: returns False on failure
   - record: passes all outcome fields through
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -17,6 +18,7 @@ from src.learning.recorder import TradeOutcomeRecorder
 
 
 # ── fixtures ──────────────────────────────────────────────────────────────
+
 
 def _make_outcome() -> dict:
     now = datetime.now(timezone.utc)

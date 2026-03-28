@@ -5,6 +5,7 @@ These decouple the rest of the codebase from the MetaTrader5 library so
 that code compiles and type-checks on any platform, including macOS where
 the MetaTrader5 package is unavailable.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -28,7 +29,7 @@ class AccountInfo:
 class Tick:
     """Mirrors MetaTrader5.Tick — last quote for a symbol."""
 
-    time: int          # unix seconds
+    time: int  # unix seconds
     bid: float
     ask: float
     last: float
@@ -42,7 +43,7 @@ class Position:
 
     ticket: int
     symbol: str
-    type: int          # 0 = BUY, 1 = SELL
+    type: int  # 0 = BUY, 1 = SELL
     volume: float
     price_open: float
     price_current: float
@@ -57,7 +58,7 @@ class OrderResult:
     """Mirrors MetaTrader5.OrderSendResult."""
 
     retcode: int
-    order: int         # ticket number
+    order: int  # ticket number
     deal: int
     volume: float
     price: float
@@ -72,7 +73,7 @@ class RateBar:
     MetaTrader5.copy_rates_from_pos().
     """
 
-    time: int          # bar open time, unix seconds
+    time: int  # bar open time, unix seconds
     open: float
     high: float
     low: float
@@ -87,8 +88,8 @@ TRADE_RETCODE_PLACED = 10008
 # MT5 timeframe constants (match MetaTrader5.TIMEFRAME_*)
 TIMEFRAME_M5 = 5
 TIMEFRAME_M15 = 15
-TIMEFRAME_H1 = 16385   # 0x4001
-TIMEFRAME_H4 = 16388   # 0x4004
+TIMEFRAME_H1 = 16385  # 0x4001
+TIMEFRAME_H4 = 16388  # 0x4004
 
 # Map from string label to MT5 constant
 TIMEFRAME_MAP: dict[str, int] = {

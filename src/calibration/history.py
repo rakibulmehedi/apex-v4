@@ -7,6 +7,7 @@ Rolling 90-day window.
 
 Architecture ref: APEX_V4_STRATEGY.md Section 5 / Section 7.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone

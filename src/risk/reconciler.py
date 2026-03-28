@@ -21,6 +21,7 @@ If reconciler loop throws:
 
 Architecture ref: APEX_V4_STRATEGY.md Section 5, ADR-004
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -92,7 +93,8 @@ class StateReconciler:
             except Exception:
                 logger.critical("reconciler_failure", exc_info=True)
                 await self._ks.trigger(
-                    "EMERGENCY", "reconciler_failure",
+                    "EMERGENCY",
+                    "reconciler_failure",
                 )
             await asyncio.sleep(self._heartbeat)
 
@@ -132,16 +134,12 @@ class StateReconciler:
 
         # ── 2. Redis state ────────────────────────────────────────
         redis_raw = self._redis.get("open_positions")
-        redis_positions: list[dict[str, Any]] = (
-            json.loads(redis_raw) if redis_raw else []
-        )
-        redis_tickets = {
-            pos.get("ticket") for pos in redis_positions if pos.get("ticket") is not None
-        }
+        redis_positions: list[dict[str, Any]] = json.loads(redis_raw) if redis_raw else []
+        redis_tickets = {pos.get("ticket") for pos in redis_positions if pos.get("ticket") is not None}
 
         # ── 3. diff ───────────────────────────────────────────────
         phantom_tickets = redis_tickets - broker_tickets  # in Redis, not broker
-        ghost_tickets = broker_tickets - redis_tickets     # in broker, not Redis
+        ghost_tickets = broker_tickets - redis_tickets  # in broker, not Redis
 
         mismatch = bool(phantom_tickets or ghost_tickets)
 

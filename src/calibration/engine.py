@@ -21,6 +21,7 @@ Exact Section 7.1 formulas — no deviation:
 Output: CalibratedTradeIntent | None
 Architecture ref: APEX_V4_STRATEGY.md Section 7.1
 """
+
 from __future__ import annotations
 
 from typing import Any

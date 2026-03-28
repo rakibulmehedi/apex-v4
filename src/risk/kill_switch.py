@@ -15,6 +15,7 @@ Rules:
 
 Architecture ref: APEX_V4_STRATEGY.md Section 4, ADR-005
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -147,11 +148,7 @@ class KillSwitch:
 
         try:
             with self._sf() as db:
-                row = (
-                    db.query(KillSwitchEvent)
-                    .order_by(KillSwitchEvent.timestamp_ms.desc())
-                    .first()
-                )
+                row = db.query(KillSwitchEvent).order_by(KillSwitchEvent.timestamp_ms.desc()).first()
                 if row is None:
                     return None
                 return str(row.new_state)
@@ -199,7 +196,10 @@ class KillSwitch:
             # ── persist to Redis + PostgreSQL ─────────────────────
             self._persist_to_redis(level_label)
             await asyncio.to_thread(
-                self._persist_to_db, previous, level_label, reason,
+                self._persist_to_db,
+                previous,
+                level_label,
+                reason,
             )
 
             # ── level-specific actions ────────────────────────────
@@ -246,10 +246,7 @@ class KillSwitch:
             If the confirmation string does not match.
         """
         if confirmation != _RESET_CONFIRMATION:
-            raise PermissionError(
-                f"Invalid confirmation string. "
-                f"Expected: {_RESET_CONFIRMATION!r}"
-            )
+            raise PermissionError(f"Invalid confirmation string. Expected: {_RESET_CONFIRMATION!r}")
 
         async with self._lock:
             previous = self.label or "NONE"
@@ -258,7 +255,10 @@ class KillSwitch:
             reason = f"Manual reset by {operator}"
             self._persist_to_redis_clear()
             await asyncio.to_thread(
-                self._persist_to_db, previous, "NONE", reason,
+                self._persist_to_db,
+                previous,
+                "NONE",
+                reason,
             )
 
             logger.warning(
@@ -284,7 +284,10 @@ class KillSwitch:
             logger.critical("kill_switch_redis_clear_failed", exc_info=True)
 
     def _persist_to_db(
-        self, previous: str, new: str, reason: str,
+        self,
+        previous: str,
+        new: str,
+        reason: str,
     ) -> None:
         """Insert a row into kill_switch_events (sync, called via to_thread)."""
         from db.models import KillSwitchEvent
@@ -383,9 +386,7 @@ class KillSwitch:
                 kill_val = self._redis.get("kill_switch")
                 redis_state["kill_switch"] = kill_val
                 pos_raw = self._redis.get("open_positions")
-                redis_state["open_positions"] = (
-                    json.loads(pos_raw) if pos_raw else []
-                )
+                redis_state["open_positions"] = json.loads(pos_raw) if pos_raw else []
             except Exception:
                 redis_state["error"] = "redis_read_failed"
 
@@ -397,7 +398,8 @@ class KillSwitch:
             }
 
             await asyncio.to_thread(
-                dump_path.write_text, json.dumps(dump, indent=2),
+                dump_path.write_text,
+                json.dumps(dump, indent=2),
             )
             logger.critical("kill_switch_state_dumped", path=str(dump_path))
         except Exception:

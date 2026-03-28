@@ -6,6 +6,7 @@ Usage:
     client = get_mt5_client()
     client.initialize()
 """
+
 from __future__ import annotations
 
 import os
@@ -47,6 +48,4 @@ def get_mt5_client(mode: str | None = None) -> MT5Client:
         logger.info("MT5 client mode: real")
         return RealMT5Client()
 
-    raise ValueError(
-        f"Unknown mt5 mode: {mode!r}. Expected 'stub' or 'real'."
-    )
+    raise ValueError(f"Unknown mt5 mode: {mode!r}. Expected 'stub' or 'real'.")

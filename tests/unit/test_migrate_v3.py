@@ -1,4 +1,5 @@
 """Tests for scripts/migrate_v3_data.py — V3 → V4 trade mapping logic."""
+
 from __future__ import annotations
 
 import sys
@@ -21,6 +22,7 @@ from scripts.migrate_v3_data import (
 # ---------------------------------------------------------------------------
 # Fixtures — synthetic V3 paper trades
 # ---------------------------------------------------------------------------
+
 
 def _v3_trade(
     *,
@@ -61,22 +63,26 @@ def _v3_trade(
 # classify_session
 # ---------------------------------------------------------------------------
 
+
 class TestClassifySession:
     """Session classifier must mirror src/market/feed.py exactly."""
 
-    @pytest.mark.parametrize("hour,expected", [
-        (3, "ASIA"),
-        (6, "ASIA"),
-        (7, "LONDON"),
-        (11, "LONDON"),
-        (12, "OVERLAP"),
-        (15, "OVERLAP"),
-        (16, "NY"),
-        (20, "NY"),
-        (21, "ASIA"),
-        (23, "ASIA"),
-        (0, "ASIA"),
-    ])
+    @pytest.mark.parametrize(
+        "hour,expected",
+        [
+            (3, "ASIA"),
+            (6, "ASIA"),
+            (7, "LONDON"),
+            (11, "LONDON"),
+            (12, "OVERLAP"),
+            (15, "OVERLAP"),
+            (16, "NY"),
+            (20, "NY"),
+            (21, "ASIA"),
+            (23, "ASIA"),
+            (0, "ASIA"),
+        ],
+    )
     def test_session_boundaries(self, hour: int, expected: str) -> None:
         assert classify_session(hour) == expected
 
@@ -85,12 +91,12 @@ class TestClassifySession:
 # map_trade — LONG
 # ---------------------------------------------------------------------------
 
+
 class TestMapTradeLong:
     """LONG trade mapping."""
 
     def test_winning_long(self) -> None:
-        trade = _v3_trade(signal="LONG", entry=1.10000, sl=1.09500,
-                          r_achieved=2.0, outcome="WIN")
+        trade = _v3_trade(signal="LONG", entry=1.10000, sl=1.09500, r_achieved=2.0, outcome="WIN")
         result = map_trade(trade, {})
         assert result is not None
         assert result["direction"] == "LONG"
@@ -101,8 +107,7 @@ class TestMapTradeLong:
         assert result["mode"] == "v3_historical"
 
     def test_losing_long(self) -> None:
-        trade = _v3_trade(signal="LONG", entry=1.10000, sl=1.09500,
-                          r_achieved=-1.0, outcome="LOSS")
+        trade = _v3_trade(signal="LONG", entry=1.10000, sl=1.09500, r_achieved=-1.0, outcome="LOSS")
         result = map_trade(trade, {})
         assert result is not None
         assert result["won"] is False
@@ -115,12 +120,12 @@ class TestMapTradeLong:
 # map_trade — SHORT
 # ---------------------------------------------------------------------------
 
+
 class TestMapTradeShort:
     """SHORT trade mapping."""
 
     def test_winning_short(self) -> None:
-        trade = _v3_trade(signal="SHORT", entry=1.10000, sl=1.10500,
-                          r_achieved=2.0, outcome="WIN")
+        trade = _v3_trade(signal="SHORT", entry=1.10000, sl=1.10500, r_achieved=2.0, outcome="WIN")
         result = map_trade(trade, {})
         assert result is not None
         assert result["direction"] == "SHORT"
@@ -130,8 +135,7 @@ class TestMapTradeShort:
         assert abs(result["exit_price"] - 1.09000) < 1e-5
 
     def test_losing_short(self) -> None:
-        trade = _v3_trade(signal="SHORT", entry=1.10000, sl=1.10500,
-                          r_achieved=-1.0, outcome="LOSS")
+        trade = _v3_trade(signal="SHORT", entry=1.10000, sl=1.10500, r_achieved=-1.0, outcome="LOSS")
         result = map_trade(trade, {})
         assert result is not None
         assert result["won"] is False
@@ -141,6 +145,7 @@ class TestMapTradeShort:
 # ---------------------------------------------------------------------------
 # map_trade — edge cases / filtering
 # ---------------------------------------------------------------------------
+
 
 class TestMapTradeEdgeCases:
     """Trades that should be skipped or handled specially."""
@@ -174,8 +179,7 @@ class TestMapTradeEdgeCases:
 
     def test_naive_timestamp_gets_utc(self) -> None:
         """Timestamps without TZ info default to UTC."""
-        trade = _v3_trade(opened_at="2026-03-10T09:30:00",
-                          closed_at="2026-03-10T14:00:00")
+        trade = _v3_trade(opened_at="2026-03-10T09:30:00", closed_at="2026-03-10T14:00:00")
         result = map_trade(trade, {})
         assert result is not None
         assert result["opened_at"].tzinfo is not None
@@ -184,6 +188,7 @@ class TestMapTradeEdgeCases:
 # ---------------------------------------------------------------------------
 # map_trade — enrichment from V3 DB
 # ---------------------------------------------------------------------------
+
 
 class TestMapTradeEnrichment:
     """V3 DB enrichment paths."""
@@ -224,6 +229,7 @@ class TestMapTradeEnrichment:
 # Session from opened_at
 # ---------------------------------------------------------------------------
 
+
 class TestSessionFromTimestamp:
     """Session should be derived from opened_at UTC hour."""
 
@@ -256,14 +262,12 @@ class TestSessionFromTimestamp:
 # print_segment_breakdown (smoke test — just ensure no crash)
 # ---------------------------------------------------------------------------
 
+
 class TestSegmentBreakdown:
     """Segment breakdown printer should not raise."""
 
     def test_prints_without_error(self, capsys: pytest.CaptureFixture[str]) -> None:
-        trades = [
-            _v3_trade(paper_id=f"PAPER_{i:04d}")
-            for i in range(35)
-        ]
+        trades = [_v3_trade(paper_id=f"PAPER_{i:04d}") for i in range(35)]
         mapped = [map_trade(t, {}) for t in trades]
         mapped = [m for m in mapped if m is not None]
         print_segment_breakdown(mapped)
@@ -283,6 +287,7 @@ class TestSegmentBreakdown:
 # ---------------------------------------------------------------------------
 # load_from_json with temp files
 # ---------------------------------------------------------------------------
+
 
 class TestLoadFromJson:
     """JSON loader reads and deduplicates."""

@@ -12,6 +12,7 @@ Tests cover:
   - Fail-fast: early gate failure skips later gates
   - Multiple REDUCE gates stack
 """
+
 from __future__ import annotations
 
 import time
@@ -40,6 +41,7 @@ from src.risk.kill_switch import KillLevel, KillSwitch
 
 # ── fixtures ──────────────────────────────────────────────────────────────
 
+
 def _candles(n: int) -> list[OHLCV]:
     return [OHLCV(open=1.1, high=1.11, low=1.09, close=1.1, volume=100)] * n
 
@@ -52,8 +54,10 @@ def _make_snapshot(stale: bool = False) -> MarketSnapshot:
         pair="EURUSD",
         timestamp=ts,
         candles=CandleMap(
-            M5=_candles(50), M15=_candles(50),
-            H1=_candles(200), H4=_candles(50),
+            M5=_candles(50),
+            M15=_candles(50),
+            H1=_candles(200),
+            H4=_candles(50),
         ),
         spread_points=0.00015,
         session=TradingSession.LONDON,
@@ -108,16 +112,19 @@ def _make_cov(
 
 # ── Gate 1: Kill switch ──────────────────────────────────────────────────
 
-class TestGate1KillSwitch:
 
+class TestGate1KillSwitch:
     @pytest.mark.asyncio
     async def test_active_kill_switch_rejects(self):
         ks = _make_ks(active=True)
         gov = RiskGovernor(ks, _make_cov())
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision == Decision.REJECT
@@ -130,8 +137,11 @@ class TestGate1KillSwitch:
         gov = RiskGovernor(ks, _make_cov())
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision != Decision.REJECT or result.gate_failed != 1
@@ -139,15 +149,18 @@ class TestGate1KillSwitch:
 
 # ── Gate 2: Data freshness ───────────────────────────────────────────────
 
-class TestGate2DataFreshness:
 
+class TestGate2DataFreshness:
     @pytest.mark.asyncio
     async def test_stale_snapshot_rejects(self):
         gov = RiskGovernor(_make_ks(), _make_cov())
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(), _make_snapshot(stale=True),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(),
+            _make_snapshot(stale=True),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision == Decision.REJECT
@@ -159,8 +172,11 @@ class TestGate2DataFreshness:
         gov = RiskGovernor(_make_ks(), _make_cov())
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(), _make_snapshot(stale=False),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(),
+            _make_snapshot(stale=False),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.gate_failed != 2 if result.decision != Decision.APPROVE else True
@@ -168,8 +184,8 @@ class TestGate2DataFreshness:
 
 # ── Gate 3: Signal sanity ────────────────────────────────────────────────
 
-class TestGate3SignalSanity:
 
+class TestGate3SignalSanity:
     @pytest.mark.asyncio
     async def test_long_sl_above_entry_rejects(self):
         """LONG: SL must be < entry_zone[0]."""
@@ -177,8 +193,11 @@ class TestGate3SignalSanity:
         gov = RiskGovernor(_make_ks(), _make_cov())
 
         result = await gov.evaluate(
-            hyp, _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            hyp,
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision == Decision.REJECT
@@ -192,8 +211,11 @@ class TestGate3SignalSanity:
         gov = RiskGovernor(_make_ks(), _make_cov())
 
         result = await gov.evaluate(
-            hyp, _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            hyp,
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision == Decision.REJECT
@@ -206,8 +228,11 @@ class TestGate3SignalSanity:
         gov = RiskGovernor(_make_ks(), _make_cov())
 
         result = await gov.evaluate(
-            hyp, _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            hyp,
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision == Decision.REJECT
@@ -220,8 +245,11 @@ class TestGate3SignalSanity:
         gov = RiskGovernor(_make_ks(), _make_cov())
 
         result = await gov.evaluate(
-            hyp, _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            hyp,
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision == Decision.REJECT
@@ -233,8 +261,11 @@ class TestGate3SignalSanity:
         gov = RiskGovernor(_make_ks(), _make_cov())
 
         result = await gov.evaluate(
-            hyp, _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            hyp,
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision == Decision.REJECT
@@ -246,8 +277,11 @@ class TestGate3SignalSanity:
         gov = RiskGovernor(_make_ks(), _make_cov())
 
         result = await gov.evaluate(
-            hyp, _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            hyp,
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision == Decision.REJECT
@@ -260,8 +294,11 @@ class TestGate3SignalSanity:
         gov = RiskGovernor(_make_ks(), _make_cov())
 
         result = await gov.evaluate(
-            hyp, _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            hyp,
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.gate_failed != 3 if result.decision != Decision.APPROVE else True
@@ -269,13 +306,15 @@ class TestGate3SignalSanity:
     @pytest.mark.asyncio
     async def test_valid_short_geometry_passes(self):
         """SHORT: SL=1.1050 > entry_hi=1.1010 → valid."""
-        hyp = _make_hypothesis(direction="SHORT", sl=1.1050, tp=1.0900,
-                               entry_zone=(1.1000, 1.1010))
+        hyp = _make_hypothesis(direction="SHORT", sl=1.1050, tp=1.0900, entry_zone=(1.1000, 1.1010))
         gov = RiskGovernor(_make_ks(), _make_cov())
 
         result = await gov.evaluate(
-            hyp, _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            hyp,
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.gate_failed != 3 if result.decision != Decision.APPROVE else True
@@ -283,8 +322,8 @@ class TestGate3SignalSanity:
 
 # ── Gate 4: Net directional exposure ─────────────────────────────────────
 
-class TestGate4NetExposure:
 
+class TestGate4NetExposure:
     @pytest.mark.asyncio
     async def test_high_usd_exposure_reduces(self):
         """3/4 positions same USD direction → 75% > 40% → REDUCE."""
@@ -292,13 +331,16 @@ class TestGate4NetExposure:
             {"pair": "EURUSD", "direction": "SHORT", "size": 0.01},  # buying USD
             {"pair": "GBPUSD", "direction": "SHORT", "size": 0.01},  # buying USD
             {"pair": "AUDUSD", "direction": "SHORT", "size": 0.01},  # buying USD
-            {"pair": "EURJPY", "direction": "LONG", "size": 0.01},   # no USD
+            {"pair": "EURJPY", "direction": "LONG", "size": 0.01},  # no USD
         ]
 
         gov = RiskGovernor(_make_ks(), _make_cov())
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(size=0.01), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(size=0.01),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
             open_positions=positions,
         )
 
@@ -318,8 +360,11 @@ class TestGate4NetExposure:
 
         gov = RiskGovernor(_make_ks(), _make_cov())
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(size=0.01), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(size=0.01),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
             open_positions=positions,
         )
 
@@ -330,8 +375,11 @@ class TestGate4NetExposure:
     async def test_no_positions_no_reduce(self):
         gov = RiskGovernor(_make_ks(), _make_cov())
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(size=0.01), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(size=0.01),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision == Decision.APPROVE
@@ -340,8 +388,8 @@ class TestGate4NetExposure:
 
 # ── Gate 5: Portfolio VaR ────────────────────────────────────────────────
 
-class TestGate5VaR:
 
+class TestGate5VaR:
     @pytest.mark.asyncio
     async def test_var_above_5pct_rejects(self):
         """VaR > 5% of portfolio → REJECT."""
@@ -349,8 +397,11 @@ class TestGate5VaR:
         gov = RiskGovernor(_make_ks(), cov)
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision == Decision.REJECT
@@ -365,8 +416,11 @@ class TestGate5VaR:
         gov = RiskGovernor(ks, cov)
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         # SOFT triggered but trade not rejected
@@ -385,8 +439,11 @@ class TestGate5VaR:
         gov = RiskGovernor(ks, cov)
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         # No SOFT trigger
@@ -396,8 +453,8 @@ class TestGate5VaR:
 
 # ── Gate 6: Covariance condition number ──────────────────────────────────
 
-class TestGate6ConditionNumber:
 
+class TestGate6ConditionNumber:
     @pytest.mark.asyncio
     async def test_phi_zero_rejects_with_hard(self):
         """Φ(κ) == 0 → HARD kill switch + REJECT."""
@@ -406,8 +463,11 @@ class TestGate6ConditionNumber:
         gov = RiskGovernor(ks, cov)
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision == Decision.REJECT
@@ -424,8 +484,11 @@ class TestGate6ConditionNumber:
         gov = RiskGovernor(_make_ks(), cov)
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(size=0.01), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(size=0.01),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision == Decision.REDUCE
@@ -439,8 +502,11 @@ class TestGate6ConditionNumber:
         gov = RiskGovernor(_make_ks(), cov)
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(size=0.01), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(size=0.01),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision == Decision.APPROVE
@@ -449,8 +515,8 @@ class TestGate6ConditionNumber:
 
 # ── Gate 7: Drawdown state ───────────────────────────────────────────────
 
-class TestGate7Drawdown:
 
+class TestGate7Drawdown:
     @pytest.mark.asyncio
     async def test_dd_above_8pct_rejects_with_hard(self):
         """DD > 8% → HARD kill switch + REJECT."""
@@ -458,8 +524,11 @@ class TestGate7Drawdown:
         gov = RiskGovernor(ks, _make_cov())
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.09,
+            _make_hypothesis(),
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.09,
         )
 
         assert result.decision == Decision.REJECT
@@ -475,8 +544,11 @@ class TestGate7Drawdown:
         gov = RiskGovernor(_make_ks(), _make_cov())
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(size=0.01), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.06,
+            _make_hypothesis(),
+            _make_intent(size=0.01),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.06,
         )
 
         assert result.decision == Decision.REDUCE
@@ -489,8 +561,11 @@ class TestGate7Drawdown:
         gov = RiskGovernor(_make_ks(), _make_cov())
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(size=0.01), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.04,
+            _make_hypothesis(),
+            _make_intent(size=0.01),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.04,
         )
 
         assert result.decision == Decision.APPROVE
@@ -498,16 +573,19 @@ class TestGate7Drawdown:
 
 # ── full pass ────────────────────────────────────────────────────────────
 
-class TestFullPass:
 
+class TestFullPass:
     @pytest.mark.asyncio
     async def test_all_gates_pass(self):
         """All gates pass → APPROVE with correct size."""
         gov = RiskGovernor(_make_ks(), _make_cov(phi=1.0))
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(size=0.01), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(size=0.01),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.decision == Decision.APPROVE
@@ -519,8 +597,8 @@ class TestFullPass:
 
 # ── fail-fast ────────────────────────────────────────────────────────────
 
-class TestFailFast:
 
+class TestFailFast:
     @pytest.mark.asyncio
     async def test_gate1_skips_later_gates(self):
         """Kill switch active → VaR never evaluated."""
@@ -529,8 +607,11 @@ class TestFailFast:
         gov = RiskGovernor(ks, cov)
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(),
+            _make_intent(),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         assert result.gate_failed == 1
@@ -542,8 +623,11 @@ class TestFailFast:
         gov = RiskGovernor(_make_ks(), _make_cov())
 
         result = await gov.evaluate(
-            _make_hypothesis(sl=0.0), _make_intent(), _make_snapshot(stale=True),
-            portfolio_value=100_000, current_dd=0.0,
+            _make_hypothesis(sl=0.0),
+            _make_intent(),
+            _make_snapshot(stale=True),
+            portfolio_value=100_000,
+            current_dd=0.0,
         )
 
         # Gate 2 should reject, not gate 3
@@ -552,8 +636,8 @@ class TestFailFast:
 
 # ── multiple reductions stack ────────────────────────────────────────────
 
-class TestStackedReductions:
 
+class TestStackedReductions:
     @pytest.mark.asyncio
     async def test_phi_and_dd_reduce_stack(self):
         """Φ(κ)=0.5 × dd_reduce=0.5 → size × 0.25."""
@@ -561,8 +645,11 @@ class TestStackedReductions:
         gov = RiskGovernor(_make_ks(), cov)
 
         result = await gov.evaluate(
-            _make_hypothesis(), _make_intent(size=0.01), _make_snapshot(),
-            portfolio_value=100_000, current_dd=0.06,
+            _make_hypothesis(),
+            _make_intent(size=0.01),
+            _make_snapshot(),
+            portfolio_value=100_000,
+            current_dd=0.06,
         )
 
         assert result.decision == Decision.REDUCE

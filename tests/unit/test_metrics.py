@@ -7,6 +7,7 @@ Tests cover:
   - Port override via APEX_METRICS_PORT env var
   - Port-already-bound error logged, not raised
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -63,10 +64,7 @@ class TestMetricDefinitions:
         """All 15 metrics are defined (6 counters + 5 gauges + 4 histograms)."""
         from prometheus_client import Counter, Gauge, Histogram
 
-        module_metrics = [
-            v for v in vars(metrics).values()
-            if isinstance(v, (Counter, Gauge, Histogram))
-        ]
+        module_metrics = [v for v in vars(metrics).values() if isinstance(v, (Counter, Gauge, Histogram))]
         assert len(module_metrics) == 15
 
 

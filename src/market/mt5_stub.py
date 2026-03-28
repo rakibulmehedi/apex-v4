@@ -4,6 +4,7 @@ src/market/mt5_stub.py — Development stub returning realistic fake data.
 Used on macOS and in all unit tests.  Every response mirrors what the real
 MT5 terminal would return for a healthy, idle account.
 """
+
 from __future__ import annotations
 
 import time
@@ -112,7 +113,11 @@ class StubMT5Client(MT5Client):
         )
 
     def copy_rates_from_pos(
-        self, symbol: str, timeframe: int, start_pos: int, count: int,
+        self,
+        symbol: str,
+        timeframe: int,
+        start_pos: int,
+        count: int,
     ) -> list[RateBar] | None:
         if not self._initialized:
             return None
@@ -134,18 +139,25 @@ class StubMT5Client(MT5Client):
             h = o + 0.00050
             l = o - 0.00050
             c = o + 0.00020
-            bars.append(RateBar(
-                time=bar_time, open=o, high=h, low=l, close=c, tick_volume=150,
-            ))
+            bars.append(
+                RateBar(
+                    time=bar_time,
+                    open=o,
+                    high=h,
+                    low=l,
+                    close=c,
+                    tick_volume=150,
+                )
+            )
         return bars
 
 
 def _tf_to_seconds(timeframe: int) -> int:
     """Convert an MT5 timeframe constant to bar duration in seconds."""
     _MAP = {
-        5: 5 * 60,         # M5
-        15: 15 * 60,       # M15
-        16385: 60 * 60,    # H1
+        5: 5 * 60,  # M5
+        15: 15 * 60,  # M15
+        16385: 60 * 60,  # H1
         16388: 4 * 60 * 60,  # H4
     }
     return _MAP.get(timeframe, 5 * 60)

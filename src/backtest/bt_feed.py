@@ -3,6 +3,7 @@ src/backtest/bt_feed.py — backtrader data feed adapter for synthetic data.
 
 Converts SyntheticCandle list into a backtrader PandasData feed.
 """
+
 from __future__ import annotations
 
 import backtrader as bt

@@ -11,6 +11,7 @@ Tests cover:
   - Chaos test: trigger HARD → simulate restart → verify HARD persists
   - allows_new_signals / is_active properties
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -89,6 +90,7 @@ def _make_ks(
 
 
 # ── escalation ───────────────────────────────────────────────────────────
+
 
 class TestEscalation:
     """Only escalate — never auto-de-escalate."""
@@ -178,6 +180,7 @@ class TestEscalation:
 
 # ── properties ───────────────────────────────────────────────────────────
 
+
 class TestProperties:
     @pytest.mark.asyncio
     async def test_initial_state(self):
@@ -208,6 +211,7 @@ class TestProperties:
 
 
 # ── dual persistence ─────────────────────────────────────────────────────
+
 
 class TestPersistence:
     """Every state change persists to Redis AND PostgreSQL."""
@@ -264,6 +268,7 @@ class TestPersistence:
 
 # ── startup recovery ─────────────────────────────────────────────────────
 
+
 class TestStartupRecovery:
     """On startup: read state from PostgreSQL."""
 
@@ -280,7 +285,7 @@ class TestStartupRecovery:
         # Simulate process restart: new KillSwitch, same DB.
         ks2 = KillSwitch(
             redis_client=FakeRedis(),  # fresh Redis (simulates restart)
-            session_factory=sf,        # same DB (persistent)
+            session_factory=sf,  # same DB (persistent)
         )
         await ks2.recover_from_db()
 
@@ -311,8 +316,8 @@ class TestStartupRecovery:
 
 # ── manual reset ─────────────────────────────────────────────────────────
 
-class TestManualReset:
 
+class TestManualReset:
     @pytest.mark.asyncio
     async def test_correct_confirmation_resets(self):
         ks = _make_ks()
@@ -361,8 +366,8 @@ class TestManualReset:
 
 # ── HARD action: flatten positions ────────────────────────────────────────
 
-class TestHardAction:
 
+class TestHardAction:
     @pytest.mark.asyncio
     async def test_hard_flattens_positions(self):
         mt5 = MagicMock()
@@ -403,8 +408,8 @@ class TestHardAction:
 
 # ── EMERGENCY action ─────────────────────────────────────────────────────
 
-class TestEmergencyAction:
 
+class TestEmergencyAction:
     @pytest.mark.asyncio
     async def test_emergency_disconnects_mt5(self):
         mt5 = MagicMock()
@@ -437,6 +442,7 @@ class TestEmergencyAction:
 
 
 # ── chaos test ───────────────────────────────────────────────────────────
+
 
 class TestChaosRestart:
     """Trigger HARD, kill process, restart, verify HARD persists."""
@@ -500,6 +506,7 @@ class TestChaosRestart:
 
 
 # ── KillLevel enum ordering ─────────────────────────────────────────────
+
 
 class TestKillLevelOrdering:
     def test_ordering(self):

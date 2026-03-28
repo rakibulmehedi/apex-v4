@@ -2,6 +2,7 @@
 
 Verifies exact Section 7.2 and 7.3 formulas.
 """
+
 from __future__ import annotations
 
 from math import erf, exp, log, sqrt
@@ -20,6 +21,7 @@ from src.alpha.ou_calibration import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_ou_series(
     mu: float = 1.10,
@@ -45,6 +47,7 @@ def _make_ou_series(
 # ---------------------------------------------------------------------------
 # fit_ou — Section 7.2
 # ---------------------------------------------------------------------------
+
 
 class TestFitOU:
     """OU MLE parameter estimation."""
@@ -137,22 +140,17 @@ class TestFitOU:
         mu = params.mu
         e_neg_theta = exp(-theta * dt)
 
-        residuals = (
-            states[1:]
-            - states[:-1] * e_neg_theta
-            - mu * (1.0 - e_neg_theta)
-        )
+        residuals = states[1:] - states[:-1] * e_neg_theta - mu * (1.0 - e_neg_theta)
         T = len(residuals)
         e_neg_2theta = exp(-2.0 * theta * dt)
-        expected_sigma_sq = (2.0 * theta / (T * (1.0 - e_neg_2theta))) * np.sum(
-            residuals ** 2
-        )
+        expected_sigma_sq = (2.0 * theta / (T * (1.0 - e_neg_2theta))) * np.sum(residuals**2)
         assert abs(params.sigma_sq - round(expected_sigma_sq, 10)) < 1e-9
 
 
 # ---------------------------------------------------------------------------
 # compute_conviction — Section 7.3
 # ---------------------------------------------------------------------------
+
 
 class TestComputeConviction:
     """Conviction score calculation."""

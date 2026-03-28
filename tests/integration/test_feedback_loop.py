@@ -16,6 +16,7 @@ Scenario:
 
 Uses SQLite in-memory DB + mock Redis — no external services required.
 """
+
 from __future__ import annotations
 
 import json
@@ -96,6 +97,7 @@ def _make_sqlite_sf():
 
 # ── Fake Redis (dict-backed) ─────────────────────────────────────────────
 
+
 class FakeRedis:
     """Minimal Redis mock using a dict."""
 
@@ -113,6 +115,7 @@ class FakeRedis:
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
+
 
 def _seed_trades(
     sf,
@@ -142,6 +145,7 @@ def _seed_trades(
 
 
 # ── integration test ─────────────────────────────────────────────────────
+
 
 class TestFeedbackLoop:
     """Full feedback cycle: fill → close → record → update → calibrate."""

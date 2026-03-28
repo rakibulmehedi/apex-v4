@@ -8,6 +8,7 @@ After each trade outcome is recorded:
 
 Architecture ref: APEX_V4_STRATEGY.md Section 5 / Section 7
 """
+
 from __future__ import annotations
 
 import json
@@ -72,7 +73,9 @@ class KellyInputUpdater:
         stats = self._perf_db.get_segment_stats(strategy, regime, session)
 
         key = _SEGMENT_KEY_FMT.format(
-            strategy=strategy, regime=regime, session=session,
+            strategy=strategy,
+            regime=regime,
+            session=session,
         )
 
         if stats is None:

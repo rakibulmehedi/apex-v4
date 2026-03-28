@@ -5,6 +5,7 @@ Tests cover: query filtering, R-multiple → daily return conversion,
 empyrical stats, monthly returns, rolling Sharpe, equity curve,
 tearsheet generation, and edge cases.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -25,6 +26,7 @@ from src.reporting.performance import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_outcome(
     *,
@@ -119,6 +121,7 @@ def _make_reporter(outcomes: list, risk_fraction: float = _DEFAULT_RISK_FRACTION
 # Tests — _outcomes_to_returns
 # ---------------------------------------------------------------------------
 
+
 class TestOutcomesToReturns:
     def test_empty_returns_empty_series(self):
         rpt = _make_reporter([])
@@ -149,8 +152,8 @@ class TestOutcomesToReturns:
     def test_gap_days_filled_with_zero(self):
         """Non-trading days between trades should be 0.0."""
         # Monday and Wednesday — Tuesday should be filled with 0.
-        mon = datetime(2026, 1, 5, 12, 0, tzinfo=timezone.utc)   # Mon
-        wed = datetime(2026, 1, 7, 12, 0, tzinfo=timezone.utc)   # Wed
+        mon = datetime(2026, 1, 5, 12, 0, tzinfo=timezone.utc)  # Mon
+        wed = datetime(2026, 1, 7, 12, 0, tzinfo=timezone.utc)  # Wed
         outcomes = [
             _make_outcome(r_multiple=1.0, closed_at=mon),
             _make_outcome(r_multiple=2.0, closed_at=wed),
@@ -172,6 +175,7 @@ class TestOutcomesToReturns:
 # Tests — get_stats
 # ---------------------------------------------------------------------------
 
+
 class TestGetStats:
     def test_insufficient_trades_returns_none(self):
         outcomes = [_make_outcome() for _ in range(_MIN_TRADES_FOR_STATS - 1)]
@@ -184,10 +188,21 @@ class TestGetStats:
         stats = rpt.get_stats()
         assert stats is not None
         expected_keys = {
-            "total_trades", "winning_trades", "losing_trades", "win_rate",
-            "avg_r_multiple", "profit_factor", "sharpe_ratio", "sortino_ratio",
-            "max_drawdown", "cagr", "calmar_ratio", "annual_volatility",
-            "total_return", "best_day", "worst_day",
+            "total_trades",
+            "winning_trades",
+            "losing_trades",
+            "win_rate",
+            "avg_r_multiple",
+            "profit_factor",
+            "sharpe_ratio",
+            "sortino_ratio",
+            "max_drawdown",
+            "cagr",
+            "calmar_ratio",
+            "annual_volatility",
+            "total_return",
+            "best_day",
+            "worst_day",
         }
         assert expected_keys == set(stats.keys())
 
@@ -241,7 +256,8 @@ class TestGetStats:
         """All winning trades → profit_factor = inf."""
         outcomes = [
             _make_outcome(
-                r_multiple=1.5, won=True,
+                r_multiple=1.5,
+                won=True,
                 closed_at=datetime(2026, 1, 5 + i, 12, 0, tzinfo=timezone.utc),
             )
             for i in range(6)
@@ -255,6 +271,7 @@ class TestGetStats:
 # ---------------------------------------------------------------------------
 # Tests — monthly returns
 # ---------------------------------------------------------------------------
+
 
 class TestMonthlyReturns:
     def test_insufficient_returns_none(self):
@@ -274,6 +291,7 @@ class TestMonthlyReturns:
 # ---------------------------------------------------------------------------
 # Tests — rolling Sharpe
 # ---------------------------------------------------------------------------
+
 
 class TestRollingSharpe:
     def test_insufficient_window_returns_none(self):
@@ -295,6 +313,7 @@ class TestRollingSharpe:
 # Tests — equity curve
 # ---------------------------------------------------------------------------
 
+
 class TestEquityCurve:
     def test_insufficient_returns_none(self):
         rpt = _make_reporter([_make_outcome()])
@@ -307,7 +326,8 @@ class TestEquityCurve:
         assert eq is not None
         # First value = 1.0 + first return
         assert eq.iloc[0] == pytest.approx(
-            1.0 + outcomes[0].r_multiple * _DEFAULT_RISK_FRACTION, abs=1e-6,
+            1.0 + outcomes[0].r_multiple * _DEFAULT_RISK_FRACTION,
+            abs=1e-6,
         )
 
     def test_monotonic_with_all_wins(self):
@@ -330,6 +350,7 @@ class TestEquityCurve:
 # Tests — tearsheet generation
 # ---------------------------------------------------------------------------
 
+
 class TestTearsheet:
     def test_insufficient_returns_none(self):
         rpt = _make_reporter([_make_outcome()])
@@ -344,7 +365,8 @@ class TestTearsheet:
         rpt = _make_reporter(outcomes)
         with tempfile.TemporaryDirectory() as td:
             result = rpt.generate_tearsheet(
-                output_dir=td, filename="test_tear.png",
+                output_dir=td,
+                filename="test_tear.png",
             )
             # pyfolio may raise in headless env — just verify we don't crash
             # and the function returns a Path or None gracefully.
@@ -355,6 +377,7 @@ class TestTearsheet:
 # ---------------------------------------------------------------------------
 # Tests — query filtering passthrough
 # ---------------------------------------------------------------------------
+
 
 class TestQueryFiltering:
     def test_filters_passed_to_db(self):
@@ -383,12 +406,14 @@ class TestQueryFiltering:
 # Tests — edge cases
 # ---------------------------------------------------------------------------
 
+
 class TestEdgeCases:
     def test_all_losses(self):
         """All trades are losses — stats should still compute."""
         outcomes = [
             _make_outcome(
-                r_multiple=-1.0, won=False,
+                r_multiple=-1.0,
+                won=False,
                 closed_at=datetime(2026, 1, 5 + i, 12, 0, tzinfo=timezone.utc),
             )
             for i in range(6)
@@ -404,10 +429,7 @@ class TestEdgeCases:
     def test_single_day_all_trades(self):
         """All trades close on the same day."""
         dt = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
-        outcomes = [
-            _make_outcome(r_multiple=1.0, closed_at=dt + timedelta(minutes=i))
-            for i in range(6)
-        ]
+        outcomes = [_make_outcome(r_multiple=1.0, closed_at=dt + timedelta(minutes=i)) for i in range(6)]
         rpt = _make_reporter(outcomes)
         s = rpt._outcomes_to_returns(outcomes)
         assert len(s) == 1

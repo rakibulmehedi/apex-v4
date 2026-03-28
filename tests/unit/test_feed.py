@@ -2,6 +2,7 @@
 
 MT5 is fully mocked via unittest.mock — no real broker, no real ZMQ IPC.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -22,6 +23,7 @@ from src.market.schemas import TradingSession
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
+
 
 def _make_bars(count: int, *, base_time: int = 1_710_000_000, interval: int = 300) -> list[RateBar]:
     """Generate a list of RateBar objects for testing."""
@@ -84,6 +86,7 @@ def _make_mock_client(
 # classify_session
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestClassifySession:
     def test_asia_early_morning(self):
         for h in (0, 1, 2, 3, 4, 5, 6):
@@ -116,6 +119,7 @@ class TestClassifySession:
 # _bar_to_ohlcv
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestBarToOhlcv:
     def test_converts_correctly(self):
         bar = RateBar(time=1000, open=1.1, high=1.2, low=1.0, close=1.15, tick_volume=99)
@@ -136,6 +140,7 @@ class TestBarToOhlcv:
 # ═════════════════════════════════════════════════════════════════════════
 # MarketFeed — candle close detection
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestCandleCloseDetection:
     def test_first_poll_no_close(self):
@@ -190,6 +195,7 @@ class TestCandleCloseDetection:
 # MarketFeed — snapshot building
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestBuildSnapshot:
     def test_builds_valid_snapshot(self):
         client = _make_mock_client()
@@ -225,9 +231,16 @@ class TestBuildSnapshot:
 
     def test_zero_spread_validation_failure(self):
         """A tick with bid==ask gives spread 0 → Pydantic rejects it."""
-        client = _make_mock_client(tick=Tick(
-            time=int(time.time()), bid=1.1, ask=1.1, last=0.0, volume=0, flags=0,
-        ))
+        client = _make_mock_client(
+            tick=Tick(
+                time=int(time.time()),
+                bid=1.1,
+                ask=1.1,
+                last=0.0,
+                volume=0,
+                flags=0,
+            )
+        )
         feed = MarketFeed(client, ["EURUSD"])
         snap = feed._build_snapshot("EURUSD")
         assert snap is None
@@ -244,6 +257,7 @@ class TestBuildSnapshot:
 # ═════════════════════════════════════════════════════════════════════════
 # MarketFeed — ZMQ publishing
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestPublish:
     @pytest.mark.asyncio
@@ -281,6 +295,7 @@ class TestPublish:
 # ═════════════════════════════════════════════════════════════════════════
 # MarketFeed — poll_once integration
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestPollOnce:
     @pytest.mark.asyncio
@@ -331,7 +346,12 @@ class TestPollOnce:
         client.copy_rates_from_pos.side_effect = copy_rates
         # Zero spread → validation error.
         client.symbol_info_tick.return_value = Tick(
-            time=int(time.time()), bid=1.0, ask=1.0, last=0.0, volume=0, flags=0,
+            time=int(time.time()),
+            bid=1.0,
+            ask=1.0,
+            last=0.0,
+            volume=0,
+            flags=0,
         )
 
         feed = MarketFeed(client, ["EURUSD"])
@@ -377,6 +397,7 @@ class TestPollOnce:
 # ═════════════════════════════════════════════════════════════════════════
 # MarketFeed — run lifecycle
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestRunLifecycle:
     @pytest.mark.asyncio

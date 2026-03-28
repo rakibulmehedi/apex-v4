@@ -21,6 +21,7 @@ Paper trading mode (settings.yaml system.mode: "paper"):
 
 Architecture ref: APEX_V4_STRATEGY.md Section 5, Phase 4 (P4.1)
 """
+
 from __future__ import annotations
 
 import time
@@ -47,10 +48,10 @@ logger = structlog.get_logger(__name__)
 
 # ── constants ────────────────────────────────────────────────────────
 
-_MAX_APPROVAL_AGE_MS = 2000   # reject approvals older than 2 seconds
-_MIN_VOLUME = 0.01            # MT5 minimum lot size
-_MAX_VOLUME = 100.0           # MT5 maximum lot size
-_LOT_SIZE = 100_000           # standard forex lot
+_MAX_APPROVAL_AGE_MS = 2000  # reject approvals older than 2 seconds
+_MIN_VOLUME = 0.01  # MT5 minimum lot size
+_MAX_VOLUME = 100.0  # MT5 maximum lot size
+_LOT_SIZE = 100_000  # standard forex lot
 
 
 @dataclass(frozen=True, slots=True)

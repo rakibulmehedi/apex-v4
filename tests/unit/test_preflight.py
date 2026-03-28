@@ -3,6 +3,7 @@
 Uses in-memory SQLite so DB checks run without a real PostgreSQL/Redis.
 MT5 and Redis checks are validated via monkeypatching / mocks.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -130,19 +131,27 @@ def _seed_v3_trades(sf: sessionmaker, count: int = 1) -> None:
     now = datetime.now(timezone.utc)
     with sf() as db:
         for i in range(count):
-            db.execute(text(
-                "INSERT INTO trade_outcomes "
-                "(pair,strategy,regime,session,direction,entry_price,exit_price,"
-                "r_multiple,won,fill_id,opened_at,closed_at) VALUES "
-                "(:p,:s,:rg,:se,:d,:ep,:xp,:rm,:w,NULL,:oa,:ca)"
-            ), {
-                "p": "EURUSD", "s": "MOMENTUM", "rg": "TRENDING_UP",
-                "se": "LONDON", "d": "LONG",
-                "ep": 1.1000 + i * 0.001, "xp": 1.1050 + i * 0.001,
-                "rm": 1.5, "w": True,
-                "oa": now - timedelta(days=10),
-                "ca": now - timedelta(days=10 - i),
-            })
+            db.execute(
+                text(
+                    "INSERT INTO trade_outcomes "
+                    "(pair,strategy,regime,session,direction,entry_price,exit_price,"
+                    "r_multiple,won,fill_id,opened_at,closed_at) VALUES "
+                    "(:p,:s,:rg,:se,:d,:ep,:xp,:rm,:w,NULL,:oa,:ca)"
+                ),
+                {
+                    "p": "EURUSD",
+                    "s": "MOMENTUM",
+                    "rg": "TRENDING_UP",
+                    "se": "LONDON",
+                    "d": "LONG",
+                    "ep": 1.1000 + i * 0.001,
+                    "xp": 1.1050 + i * 0.001,
+                    "rm": 1.5,
+                    "w": True,
+                    "oa": now - timedelta(days=10),
+                    "ca": now - timedelta(days=10 - i),
+                },
+            )
         db.commit()
 
 
@@ -158,19 +167,27 @@ def _seed_all_segments(sf: sessionmaker, trades_per_segment: int = 30) -> None:
             for regime in regimes:
                 for sess in sessions:
                     for i in range(trades_per_segment):
-                        db.execute(text(
-                            "INSERT INTO trade_outcomes "
-                            "(pair,strategy,regime,session,direction,entry_price,exit_price,"
-                            "r_multiple,won,fill_id,opened_at,closed_at) VALUES "
-                            "(:p,:s,:rg,:se,:d,:ep,:xp,:rm,:w,NULL,:oa,:ca)"
-                        ), {
-                            "p": "EURUSD", "s": strat, "rg": regime, "se": sess,
-                            "d": "LONG",
-                            "ep": 1.1000, "xp": 1.1050,
-                            "rm": 1.5, "w": True,
-                            "oa": now - timedelta(days=20),
-                            "ca": now - timedelta(days=3),
-                        })
+                        db.execute(
+                            text(
+                                "INSERT INTO trade_outcomes "
+                                "(pair,strategy,regime,session,direction,entry_price,exit_price,"
+                                "r_multiple,won,fill_id,opened_at,closed_at) VALUES "
+                                "(:p,:s,:rg,:se,:d,:ep,:xp,:rm,:w,NULL,:oa,:ca)"
+                            ),
+                            {
+                                "p": "EURUSD",
+                                "s": strat,
+                                "rg": regime,
+                                "se": sess,
+                                "d": "LONG",
+                                "ep": 1.1000,
+                                "xp": 1.1050,
+                                "rm": 1.5,
+                                "w": True,
+                                "oa": now - timedelta(days=20),
+                                "ca": now - timedelta(days=3),
+                            },
+                        )
         db.commit()
 
 
@@ -218,7 +235,9 @@ class TestCheckMT5:
     def test_pass_when_account_info_returns_data(self):
         mock_mt5 = MagicMock()
         mock_mt5.account_info.return_value = MagicMock(
-            login=12345, server="Demo", equity=10000.0,
+            login=12345,
+            server="Demo",
+            equity=10000.0,
         )
         with patch("src.pipeline.get_mt5_client", return_value=mock_mt5):
             result = _check_mt5({"mt5": {"mode": "stub"}})
@@ -252,16 +271,20 @@ class TestCheckKillSwitch:
     def test_pass_when_last_event_is_none(self):
         sf = _make_session_factory(_KILL_SWITCH_EVENTS_DDL)
         with sf() as db:
-            db.execute(text(
-                "INSERT INTO kill_switch_events "
-                "(timestamp_ms,level,previous_state,new_state,reason,broker_state_mismatch) "
-                "VALUES (1000,'SOFT','NONE','SOFT','test',0)"
-            ))
-            db.execute(text(
-                "INSERT INTO kill_switch_events "
-                "(timestamp_ms,level,previous_state,new_state,reason,broker_state_mismatch) "
-                "VALUES (2000,'SOFT','SOFT','NONE','manual reset',0)"
-            ))
+            db.execute(
+                text(
+                    "INSERT INTO kill_switch_events "
+                    "(timestamp_ms,level,previous_state,new_state,reason,broker_state_mismatch) "
+                    "VALUES (1000,'SOFT','NONE','SOFT','test',0)"
+                )
+            )
+            db.execute(
+                text(
+                    "INSERT INTO kill_switch_events "
+                    "(timestamp_ms,level,previous_state,new_state,reason,broker_state_mismatch) "
+                    "VALUES (2000,'SOFT','SOFT','NONE','manual reset',0)"
+                )
+            )
             db.commit()
         result = _check_kill_switch(sf)
         assert result.passed is True
@@ -269,11 +292,13 @@ class TestCheckKillSwitch:
     def test_fail_when_active(self):
         sf = _make_session_factory(_KILL_SWITCH_EVENTS_DDL)
         with sf() as db:
-            db.execute(text(
-                "INSERT INTO kill_switch_events "
-                "(timestamp_ms,level,previous_state,new_state,reason,broker_state_mismatch) "
-                "VALUES (1000,'HARD','NONE','HARD','drawdown breach',0)"
-            ))
+            db.execute(
+                text(
+                    "INSERT INTO kill_switch_events "
+                    "(timestamp_ms,level,previous_state,new_state,reason,broker_state_mismatch) "
+                    "VALUES (1000,'HARD','NONE','HARD','drawdown breach',0)"
+                )
+            )
             db.commit()
         result = _check_kill_switch(sf)
         assert result.passed is False
@@ -292,11 +317,13 @@ class TestCheckNoStateDrift:
     def test_pass_when_only_clean_heartbeats(self):
         sf = _make_session_factory(_RECONCILIATION_LOG_DDL)
         with sf() as db:
-            db.execute(text(
-                "INSERT INTO reconciliation_log "
-                "(timestamp_ms,redis_positions,mt5_positions,mismatch_detected) "
-                "VALUES (1000,'[]','[]',0)"
-            ))
+            db.execute(
+                text(
+                    "INSERT INTO reconciliation_log "
+                    "(timestamp_ms,redis_positions,mt5_positions,mismatch_detected) "
+                    "VALUES (1000,'[]','[]',0)"
+                )
+            )
             db.commit()
         result = _check_no_state_drift(sf)
         assert result.passed is True
@@ -304,13 +331,15 @@ class TestCheckNoStateDrift:
     def test_fail_when_drift_detected(self):
         sf = _make_session_factory(_RECONCILIATION_LOG_DDL)
         with sf() as db:
-            db.execute(text(
-                "INSERT INTO reconciliation_log "
-                "(timestamp_ms,redis_positions,mt5_positions,mismatch_detected,"
-                "positions_diverged,action_taken) "
-                "VALUES (:ts,:rp,:mp,:mm,:pd,:at)"
-            ), {"ts": 1000, "rp": "[]", "mp": '[{"ticket":1}]',
-                "mm": 1, "pd": '{"ghost":[1]}', "at": "HARD"})
+            db.execute(
+                text(
+                    "INSERT INTO reconciliation_log "
+                    "(timestamp_ms,redis_positions,mt5_positions,mismatch_detected,"
+                    "positions_diverged,action_taken) "
+                    "VALUES (:ts,:rp,:mp,:mm,:pd,:at)"
+                ),
+                {"ts": 1000, "rp": "[]", "mp": '[{"ticket":1}]', "mm": 1, "pd": '{"ghost":[1]}', "at": "HARD"},
+            )
             db.commit()
         result = _check_no_state_drift(sf)
         assert result.passed is False
@@ -364,11 +393,7 @@ class TestCheckCapitalAllocation:
 class TestCheckSecretsEnv:
     def test_pass_all_credentials_set(self, tmp_path):
         secrets = tmp_path / "secrets.env"
-        secrets.write_text(
-            "MT5_LOGIN=12345\n"
-            "MT5_PASSWORD=hunter2\n"
-            "MT5_SERVER=MetaQuotes-Demo\n"
-        )
+        secrets.write_text("MT5_LOGIN=12345\nMT5_PASSWORD=hunter2\nMT5_SERVER=MetaQuotes-Demo\n")
         result = _check_secrets_env(secrets)
         assert result.passed is True
 
@@ -379,11 +404,7 @@ class TestCheckSecretsEnv:
 
     def test_fail_empty_values(self, tmp_path):
         secrets = tmp_path / "secrets.env"
-        secrets.write_text(
-            "MT5_LOGIN=\n"
-            "MT5_PASSWORD=\n"
-            "MT5_SERVER=\n"
-        )
+        secrets.write_text("MT5_LOGIN=\nMT5_PASSWORD=\nMT5_SERVER=\n")
         result = _check_secrets_env(secrets)
         assert result.passed is False
         assert "empty values" in result.detail
@@ -434,19 +455,28 @@ class TestCheckV3DataImported:
         sf = _make_session_factory(_TRADE_OUTCOMES_DDL)
         now = datetime.now(timezone.utc)
         with sf() as db:
-            db.execute(text(
-                "INSERT INTO trade_outcomes "
-                "(pair,strategy,regime,session,direction,entry_price,exit_price,"
-                "r_multiple,won,fill_id,opened_at,closed_at) VALUES "
-                "(:p,:s,:rg,:se,:d,:ep,:xp,:rm,:w,:fid,:oa,:ca)"
-            ), {
-                "p": "EURUSD", "s": "MOMENTUM", "rg": "TRENDING_UP",
-                "se": "LONDON", "d": "LONG",
-                "ep": 1.1000, "xp": 1.1050,
-                "rm": 1.5, "w": True, "fid": 12345,
-                "oa": now - timedelta(days=10),
-                "ca": now - timedelta(days=3),
-            })
+            db.execute(
+                text(
+                    "INSERT INTO trade_outcomes "
+                    "(pair,strategy,regime,session,direction,entry_price,exit_price,"
+                    "r_multiple,won,fill_id,opened_at,closed_at) VALUES "
+                    "(:p,:s,:rg,:se,:d,:ep,:xp,:rm,:w,:fid,:oa,:ca)"
+                ),
+                {
+                    "p": "EURUSD",
+                    "s": "MOMENTUM",
+                    "rg": "TRENDING_UP",
+                    "se": "LONDON",
+                    "d": "LONG",
+                    "ep": 1.1000,
+                    "xp": 1.1050,
+                    "rm": 1.5,
+                    "w": True,
+                    "fid": 12345,
+                    "oa": now - timedelta(days=10),
+                    "ca": now - timedelta(days=3),
+                },
+            )
             db.commit()
         result = _check_v3_data_imported(sf)
         assert result.passed is False
@@ -569,7 +599,9 @@ class TestRunPreflight:
         patches = self._make_patches()
         with pytest.raises(SystemExit):
             self._run_with_patches(
-                patches, settings, MagicMock(side_effect=EOFError),
+                patches,
+                settings,
+                MagicMock(side_effect=EOFError),
             )
 
     def test_keyboard_interrupt_aborts(self):
@@ -577,7 +609,9 @@ class TestRunPreflight:
         patches = self._make_patches()
         with pytest.raises(SystemExit):
             self._run_with_patches(
-                patches, settings, MagicMock(side_effect=KeyboardInterrupt),
+                patches,
+                settings,
+                MagicMock(side_effect=KeyboardInterrupt),
             )
 
     # ── Hard check failures always block ─────────────────────────────

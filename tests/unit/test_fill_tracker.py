@@ -13,6 +13,7 @@ Tests cover:
   - record_close: removes order from _open_fills after close
   - record_close: outcome dict has all expected keys
 """
+
 from __future__ import annotations
 
 import time
@@ -139,9 +140,11 @@ class TestRecordCloseLong:
         tracker = FillTracker(session_factory=sf)
         tracker.record_fill(_make_fill(order_id=1, fill_price=1.0800))
         outcome = tracker.record_close(
-            order_id=1, close_price=1.0900,
+            order_id=1,
+            close_price=1.0900,
             close_time_ms=int(time.time() * 1000),
-            stop_loss=1.0750, session_label="LONDON",
+            stop_loss=1.0750,
+            session_label="LONDON",
         )
         assert outcome is not None
         # R = (1.0900 - 1.0800) / |1.0800 - 1.0750| = 0.01 / 0.005 = 2.0
@@ -153,9 +156,11 @@ class TestRecordCloseLong:
         tracker = FillTracker(session_factory=sf)
         tracker.record_fill(_make_fill(order_id=1, fill_price=1.0800))
         outcome = tracker.record_close(
-            order_id=1, close_price=1.0750,
+            order_id=1,
+            close_price=1.0750,
             close_time_ms=int(time.time() * 1000),
-            stop_loss=1.0750, session_label="LONDON",
+            stop_loss=1.0750,
+            session_label="LONDON",
         )
         assert outcome is not None
         # R = (1.0750 - 1.0800) / 0.005 = -1.0
@@ -169,13 +174,19 @@ class TestRecordCloseShort:
     def test_winning_short(self):
         sf = _make_sqlite_sf()
         tracker = FillTracker(session_factory=sf)
-        tracker.record_fill(_make_fill(
-            order_id=1, direction="SHORT", fill_price=1.0800,
-        ))
+        tracker.record_fill(
+            _make_fill(
+                order_id=1,
+                direction="SHORT",
+                fill_price=1.0800,
+            )
+        )
         outcome = tracker.record_close(
-            order_id=1, close_price=1.0700,
+            order_id=1,
+            close_price=1.0700,
             close_time_ms=int(time.time() * 1000),
-            stop_loss=1.0850, session_label="NY",
+            stop_loss=1.0850,
+            session_label="NY",
         )
         assert outcome is not None
         # R = (1.0800 - 1.0700) / |1.0800 - 1.0850| = 0.01 / 0.005 = 2.0
@@ -185,13 +196,19 @@ class TestRecordCloseShort:
     def test_losing_short(self):
         sf = _make_sqlite_sf()
         tracker = FillTracker(session_factory=sf)
-        tracker.record_fill(_make_fill(
-            order_id=1, direction="SHORT", fill_price=1.0800,
-        ))
+        tracker.record_fill(
+            _make_fill(
+                order_id=1,
+                direction="SHORT",
+                fill_price=1.0800,
+            )
+        )
         outcome = tracker.record_close(
-            order_id=1, close_price=1.0850,
+            order_id=1,
+            close_price=1.0850,
             close_time_ms=int(time.time() * 1000),
-            stop_loss=1.0850, session_label="NY",
+            stop_loss=1.0850,
+            session_label="NY",
         )
         assert outcome is not None
         # R = (1.0800 - 1.0850) / 0.005 = -1.0
@@ -206,9 +223,11 @@ class TestRecordCloseEdgeCases:
         sf = _make_sqlite_sf()
         tracker = FillTracker(session_factory=sf)
         outcome = tracker.record_close(
-            order_id=999, close_price=1.0900,
+            order_id=999,
+            close_price=1.0900,
             close_time_ms=int(time.time() * 1000),
-            stop_loss=1.0750, session_label="LONDON",
+            stop_loss=1.0750,
+            session_label="LONDON",
         )
         assert outcome is None
 
@@ -217,7 +236,8 @@ class TestRecordCloseEdgeCases:
         tracker = FillTracker(session_factory=sf)
         tracker.record_fill(_make_fill(order_id=1, fill_price=1.0800))
         outcome = tracker.record_close(
-            order_id=1, close_price=1.0900,
+            order_id=1,
+            close_price=1.0900,
             close_time_ms=int(time.time() * 1000),
             stop_loss=1.0800,  # same as entry → zero risk
             session_label="LONDON",
@@ -230,9 +250,11 @@ class TestRecordCloseEdgeCases:
         tracker.record_fill(_make_fill(order_id=1, fill_price=1.0800))
         assert 1 in tracker._open_fills
         tracker.record_close(
-            order_id=1, close_price=1.0900,
+            order_id=1,
+            close_price=1.0900,
             close_time_ms=int(time.time() * 1000),
-            stop_loss=1.0750, session_label="LONDON",
+            stop_loss=1.0750,
+            session_label="LONDON",
         )
         assert 1 not in tracker._open_fills
 
@@ -241,15 +263,26 @@ class TestRecordCloseEdgeCases:
         tracker = FillTracker(session_factory=sf)
         tracker.record_fill(_make_fill(order_id=1, fill_price=1.0800))
         outcome = tracker.record_close(
-            order_id=1, close_price=1.0900,
+            order_id=1,
+            close_price=1.0900,
             close_time_ms=int(time.time() * 1000),
-            stop_loss=1.0750, session_label="LONDON",
+            stop_loss=1.0750,
+            session_label="LONDON",
         )
         assert outcome is not None
         expected_keys = {
-            "pair", "strategy", "regime", "session", "direction",
-            "entry_price", "exit_price", "r_multiple", "won",
-            "fill_id", "opened_at", "closed_at",
+            "pair",
+            "strategy",
+            "regime",
+            "session",
+            "direction",
+            "entry_price",
+            "exit_price",
+            "r_multiple",
+            "won",
+            "fill_id",
+            "opened_at",
+            "closed_at",
         }
         assert set(outcome.keys()) == expected_keys
 
@@ -258,9 +291,11 @@ class TestRecordCloseEdgeCases:
         tracker = FillTracker(session_factory=sf)
         tracker.record_fill(_make_fill(order_id=1, fill_price=1.0800))
         outcome = tracker.record_close(
-            order_id=1, close_price=1.0900,
+            order_id=1,
+            close_price=1.0900,
             close_time_ms=int(time.time() * 1000),
-            stop_loss=1.0750, session_label="LONDON",
+            stop_loss=1.0750,
+            session_label="LONDON",
         )
         assert isinstance(outcome["opened_at"], datetime)
         assert isinstance(outcome["closed_at"], datetime)

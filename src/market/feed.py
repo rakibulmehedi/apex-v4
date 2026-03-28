@@ -9,6 +9,7 @@ over ZMQ PUSH to ``tcp://127.0.0.1:5559``.
 
 Validation failures are logged and skipped — bad data never propagates.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -44,6 +45,7 @@ _MIN_CANDLES: dict[str, int] = {"M5": 50, "M15": 50, "H1": 200, "H4": 50}
 
 # ── session classifier ──────────────────────────────────────────────────
 
+
 def classify_session(utc_hour: int) -> TradingSession:
     """Classify the current trading session from a UTC hour (0–23).
 
@@ -63,6 +65,7 @@ def classify_session(utc_hour: int) -> TradingSession:
 
 
 # ── MarketFeed ───────────────────────────────────────────────────────────
+
 
 class MarketFeed:
     """Async poller that detects candle closes and publishes snapshots.
@@ -262,6 +265,7 @@ class MarketFeed:
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
+
 
 def _bar_to_ohlcv(bar: RateBar) -> dict:
     """Convert a RateBar to an OHLCV-compatible dict."""

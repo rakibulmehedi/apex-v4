@@ -5,6 +5,7 @@ Validates every constraint from APEX_V4_STRATEGY.md Section 6:
   CalibratedTradeIntent, RiskDecision
 - Invalid data must be rejected by Pydantic validators.
 """
+
 from __future__ import annotations
 
 import time
@@ -30,6 +31,7 @@ from src.market.schemas import (
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
+
 
 def _ohlcv(**overrides) -> dict:
     base = {"open": 1.1000, "high": 1.1050, "low": 1.0950, "close": 1.1020, "volume": 100.0}
@@ -126,6 +128,7 @@ def _risk_decision(**overrides) -> dict:
 # OHLCV
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestOHLCV:
     def test_valid(self):
         c = OHLCV(**_ohlcv())
@@ -145,6 +148,7 @@ class TestOHLCV:
 # ═════════════════════════════════════════════════════════════════════════
 # MarketSnapshot
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestMarketSnapshot:
     def test_valid(self):
@@ -235,6 +239,7 @@ class TestMarketSnapshot:
 # FeatureVector
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestFeatureVector:
     def test_valid(self):
         fv = FeatureVector(**_feature_vector())
@@ -257,6 +262,7 @@ class TestFeatureVector:
 # ═════════════════════════════════════════════════════════════════════════
 # AlphaHypothesis
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestAlphaHypothesis:
     def test_valid_mean_reversion(self):
@@ -349,6 +355,7 @@ class TestAlphaHypothesis:
 # CalibratedTradeIntent
 # ═════════════════════════════════════════════════════════════════════════
 
+
 class TestCalibratedTradeIntent:
     def test_valid(self):
         ct = CalibratedTradeIntent(**_calibrated())
@@ -398,6 +405,7 @@ class TestCalibratedTradeIntent:
 # ═════════════════════════════════════════════════════════════════════════
 # RiskDecision
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class TestRiskDecision:
     def test_valid_approve(self):

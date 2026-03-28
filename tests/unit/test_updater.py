@@ -9,6 +9,7 @@ Tests cover:
   - update_segment: logs warning when segment < 30
   - update_segment: Redis failure doesn't crash
 """
+
 from __future__ import annotations
 
 import json
@@ -20,6 +21,7 @@ from src.learning.updater import KellyInputUpdater
 
 
 # ── fixtures ──────────────────────────────────────────────────────────────
+
 
 def _make_stats(
     win_rate: float = 0.60,
@@ -87,7 +89,9 @@ class TestUpdateSegmentSuccess:
         updater, mock_db, _ = _make_updater(stats=_make_stats())
         updater.update_segment("MEAN_REVERSION", "RANGING", "OVERLAP")
         mock_db.get_segment_stats.assert_called_once_with(
-            "MEAN_REVERSION", "RANGING", "OVERLAP",
+            "MEAN_REVERSION",
+            "RANGING",
+            "OVERLAP",
         )
 
 
@@ -117,7 +121,8 @@ class TestUpdateSegmentRedisFailure:
 
     def test_redis_set_failure_returns_stats(self):
         updater, _, _ = _make_updater(
-            stats=_make_stats(), redis_error=True,
+            stats=_make_stats(),
+            redis_error=True,
         )
         # Should not raise, stats still returned.
         result = updater.update_segment("MOMENTUM", "TRENDING_UP", "LONDON")

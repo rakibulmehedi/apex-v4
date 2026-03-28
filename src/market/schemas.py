@@ -4,6 +4,7 @@ Every field, type, and constraint matches the strategy spec exactly.
 These schemas are the Python-side validation layer; PostgreSQL tables
 in db/models.py are the persistence layer.
 """
+
 from __future__ import annotations
 
 import time
@@ -22,6 +23,7 @@ from pydantic import (
 # ---------------------------------------------------------------------------
 # Enums — match strategy doc
 # ---------------------------------------------------------------------------
+
 
 class TradingSession(StrEnum):
     LONDON = "LONDON"
@@ -63,8 +65,10 @@ class RiskState(StrEnum):
 # OHLCV — candle bar (referenced by MarketSnapshot)
 # ---------------------------------------------------------------------------
 
+
 class OHLCV(BaseModel):
     """Single OHLCV candle bar."""
+
     model_config = ConfigDict(frozen=True)
 
     open: float
@@ -87,6 +91,7 @@ _STALE_MS = 5000
 
 class CandleMap(BaseModel):
     """Timeframe-keyed candle arrays with minimum-count validation."""
+
     model_config = ConfigDict(frozen=True)
 
     M5: list[OHLCV] = Field(min_length=50)
@@ -101,6 +106,7 @@ class MarketSnapshot(BaseModel):
     ``is_stale`` is a computed field: True when the snapshot timestamp
     is more than 5 000 ms behind the current wall-clock time.
     """
+
     model_config = ConfigDict(frozen=True)
 
     type: Literal["MarketSnapshot"] = "MarketSnapshot"
@@ -122,8 +128,10 @@ class MarketSnapshot(BaseModel):
 # FeatureVector — Section 6
 # ---------------------------------------------------------------------------
 
+
 class FeatureVector(BaseModel):
     """Computed technical indicators for one pair at one point in time."""
+
     model_config = ConfigDict(frozen=True)
 
     type: Literal["FeatureVector"] = "FeatureVector"
@@ -144,6 +152,7 @@ class FeatureVector(BaseModel):
 # AlphaHypothesis — Section 6
 # ---------------------------------------------------------------------------
 
+
 class AlphaHypothesis(BaseModel):
     """Trade hypothesis emitted by an alpha engine.
 
@@ -151,6 +160,7 @@ class AlphaHypothesis(BaseModel):
     ``expected_R`` must be >= 1.8 (hard gate from strategy spec).
     ``setup_score`` is an integer 0–30.
     """
+
     model_config = ConfigDict(frozen=True)
 
     type: Literal["AlphaHypothesis"] = "AlphaHypothesis"
@@ -168,15 +178,14 @@ class AlphaHypothesis(BaseModel):
     @model_validator(mode="after")
     def _conviction_only_for_mr(self) -> AlphaHypothesis:
         if self.strategy == Strategy.MOMENTUM and self.conviction is not None:
-            raise ValueError(
-                "conviction must be None for MOMENTUM strategy"
-            )
+            raise ValueError("conviction must be None for MOMENTUM strategy")
         return self
 
 
 # ---------------------------------------------------------------------------
 # CalibratedTradeIntent — Section 6
 # ---------------------------------------------------------------------------
+
 
 class CalibratedTradeIntent(BaseModel):
     """Calibration engine output — size and edge from historical segments.
@@ -185,6 +194,7 @@ class CalibratedTradeIntent(BaseModel):
     ``edge`` must be > 0 or the trade is rejected upstream.
     ``suggested_size`` is capped at 0.02 (2 % hard cap, Section 7.1).
     """
+
     model_config = ConfigDict(frozen=True)
 
     p_win: Annotated[float, Field(ge=0.0, le=1.0)]
@@ -198,12 +208,14 @@ class CalibratedTradeIntent(BaseModel):
 # RiskDecision — Section 6
 # ---------------------------------------------------------------------------
 
+
 class RiskDecision(BaseModel):
     """Risk governor output — approve, reject, or reduce a trade.
 
     ``gate_failed`` is 1–7 indicating which risk gate failed,
     or None when decision is APPROVE.
     """
+
     model_config = ConfigDict(frozen=True)
 
     decision: Decision
@@ -215,11 +227,7 @@ class RiskDecision(BaseModel):
     @model_validator(mode="after")
     def _gate_failed_consistency(self) -> RiskDecision:
         if self.decision == Decision.APPROVE and self.gate_failed is not None:
-            raise ValueError(
-                "gate_failed must be None when decision is APPROVE"
-            )
+            raise ValueError("gate_failed must be None when decision is APPROVE")
         if self.decision != Decision.APPROVE and self.gate_failed is None:
-            raise ValueError(
-                "gate_failed is required when decision is REJECT or REDUCE"
-            )
+            raise ValueError("gate_failed is required when decision is REJECT or REDUCE")
         return self

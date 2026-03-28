@@ -9,6 +9,7 @@ Output: ``FeatureVector``
 All indicator calculations use TA-Lib exclusively — no custom numpy
 implementations.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -55,10 +56,7 @@ class FeatureFabric:
         """
         h1_candles = snapshot.candles.H1
         if len(h1_candles) < _MIN_H1_CANDLES:
-            raise ValueError(
-                f"Need at least {_MIN_H1_CANDLES} H1 candles, "
-                f"got {len(h1_candles)}"
-            )
+            raise ValueError(f"Need at least {_MIN_H1_CANDLES} H1 candles, got {len(h1_candles)}")
 
         # ── extract numpy arrays from H1 candles ────────────────────
         high = np.array([c.high for c in h1_candles], dtype=np.float64)
@@ -70,7 +68,10 @@ class FeatureFabric:
         adx_arr = talib.ADX(high, low, close, timeperiod=14)
         ema_arr = talib.EMA(close, timeperiod=200)
         bb_upper_arr, bb_mid_arr, bb_lower_arr = talib.BBANDS(
-            close, timeperiod=20, nbdevup=2, nbdevdn=2,
+            close,
+            timeperiod=20,
+            nbdevup=2,
+            nbdevdn=2,
         )
 
         # Take the last valid value of each indicator.

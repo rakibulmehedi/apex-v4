@@ -8,6 +8,7 @@ Metric naming convention: ``apex_<metric>`` with relevant labels.
 
 Architecture ref: APEX_V4_STRATEGY.md Section 8 (Phase 5), CLI Playbook Ch. 7-A.
 """
+
 from __future__ import annotations
 
 import os
@@ -113,6 +114,7 @@ CYCLE_DURATION_MS = Histogram(
 
 
 # ── server startup ────────────────────────────────────────────────────
+
 
 def start_metrics_server(port: int | None = None) -> int:
     """Start the Prometheus HTTP metrics server.

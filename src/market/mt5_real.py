@@ -5,6 +5,7 @@ MetaTrader5 is imported lazily inside each method so this module can be
 imported on macOS without raising ImportError at load time.  It will only
 fail at *runtime* if a method is actually called on a non-Windows machine.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -27,12 +28,10 @@ def _import_mt5():  # noqa: ANN202
     """Lazy import — fails loudly if MetaTrader5 is not installed."""
     try:
         import MetaTrader5 as mt5  # type: ignore[import-not-found]
+
         return mt5
     except ImportError:
-        logger.error(
-            "MetaTrader5 package not installed — "
-            "this is expected on macOS. Use mt5.mode: stub in settings.yaml."
-        )
+        logger.error("MetaTrader5 package not installed — this is expected on macOS. Use mt5.mode: stub in settings.yaml.")
         raise
 
 
@@ -120,7 +119,11 @@ class RealMT5Client(MT5Client):
         )
 
     def copy_rates_from_pos(
-        self, symbol: str, timeframe: int, start_pos: int, count: int,
+        self,
+        symbol: str,
+        timeframe: int,
+        start_pos: int,
+        count: int,
     ) -> list[RateBar] | None:
         mt5 = _import_mt5()
         rates = mt5.copy_rates_from_pos(symbol, timeframe, start_pos, count)

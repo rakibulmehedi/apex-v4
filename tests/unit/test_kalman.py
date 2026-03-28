@@ -1,4 +1,5 @@
 """Unit tests for src/alpha/kalman.py — Kalman filter wrapper."""
+
 from __future__ import annotations
 
 import numpy as np

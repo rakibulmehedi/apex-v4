@@ -11,6 +11,7 @@ Simulation: callers invoke ``process_tick()`` directly (no ZMQ).
 
 Architecture ref: APEX_V4_STRATEGY.md Section 5
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -66,6 +67,7 @@ _ZMQ_POLL_TIMEOUT_MS = 1000
 
 # ── PipelineContext ──────────────────────────────────────────────────
 
+
 @dataclass
 class PipelineContext:
     """Dependency-injection container holding all initialised components."""
@@ -93,6 +95,7 @@ class PipelineContext:
 
 
 # ── Settings ─────────────────────────────────────────────────────────
+
 
 def load_settings(path: str | Path = "config/settings.yaml") -> dict[str, Any]:
     """Parse the runtime settings file."""
@@ -127,6 +130,7 @@ def _bold(msg: str) -> str:
 
 # ── Pre-Flight Validation ────────────────────────────────────────────
 
+
 @dataclass
 class PreflightResult:
     """Outcome of a single pre-flight check."""
@@ -142,11 +146,7 @@ def _check_v3_data_imported(session_factory: Any) -> PreflightResult:
     name = "V3 data imported"
     try:
         with session_factory() as db:
-            count = (
-                db.query(func.count(TradeOutcome.id))
-                .filter(TradeOutcome.fill_id.is_(None))
-                .scalar()
-            )
+            count = db.query(func.count(TradeOutcome.id)).filter(TradeOutcome.fill_id.is_(None)).scalar()
             if count and count > 0:
                 return PreflightResult(name=name, passed=True, detail=f"{count} V3 rows found")
             return PreflightResult(
@@ -157,7 +157,8 @@ def _check_v3_data_imported(session_factory: Any) -> PreflightResult:
             )
     except Exception as exc:
         return PreflightResult(
-            name=name, passed=False,
+            name=name,
+            passed=False,
             detail=f"Database query failed: {exc}",
             fix="Ensure PostgreSQL is running and APEX_DATABASE_URL is set correctly",
         )
@@ -201,7 +202,8 @@ def _check_segment_counts(session_factory: Any) -> PreflightResult:
         )
     except Exception as exc:
         return PreflightResult(
-            name=name, passed=False,
+            name=name,
+            passed=False,
             detail=f"Database query failed: {exc}",
             fix="Ensure PostgreSQL is running and APEX_DATABASE_URL is set correctly",
         )
@@ -214,11 +216,7 @@ def _check_kill_switch(session_factory: Any) -> PreflightResult:
         from db.models import KillSwitchEvent
 
         with session_factory() as db:
-            row = (
-                db.query(KillSwitchEvent)
-                .order_by(KillSwitchEvent.timestamp_ms.desc())
-                .first()
-            )
+            row = db.query(KillSwitchEvent).order_by(KillSwitchEvent.timestamp_ms.desc()).first()
             if row is None:
                 return PreflightResult(name=name, passed=True, detail="No kill switch events — state is NONE")
             state = str(row.new_state)
@@ -232,7 +230,8 @@ def _check_kill_switch(session_factory: Any) -> PreflightResult:
             )
     except Exception as exc:
         return PreflightResult(
-            name=name, passed=False,
+            name=name,
+            passed=False,
             detail=f"Database query failed: {exc}",
             fix="Ensure PostgreSQL is running and kill_switch_events table exists",
         )
@@ -248,15 +247,21 @@ def _check_redis(settings: dict[str, Any]) -> PreflightResult:
         return PreflightResult(name=name, passed=True, detail=f"PING OK ({redis_url})")
     except Exception as exc:
         return PreflightResult(
-            name=name, passed=False,
+            name=name,
+            passed=False,
             detail=f"Redis unreachable at {redis_url}: {exc}",
             fix="Start Redis: redis-server  — or set APEX_REDIS_URL to the correct address",
         )
 
 
 _REQUIRED_TABLES = [
-    "market_snapshots", "candles", "feature_vectors", "trade_outcomes",
-    "kill_switch_events", "fills", "reconciliation_log",
+    "market_snapshots",
+    "candles",
+    "feature_vectors",
+    "trade_outcomes",
+    "kill_switch_events",
+    "fills",
+    "reconciliation_log",
 ]
 
 
@@ -277,12 +282,13 @@ def _check_postgres(session_factory: Any) -> PreflightResult:
                 name=name,
                 passed=False,
                 detail=f"Missing tables: {', '.join(missing)}",
-                fix="Run: python -c \"from db.models import Base, make_engine; Base.metadata.create_all(make_engine())\"",
+                fix='Run: python -c "from db.models import Base, make_engine; Base.metadata.create_all(make_engine())"',
             )
         return PreflightResult(name=name, passed=True, detail=f"Connected, all {len(_REQUIRED_TABLES)} tables present")
     except Exception as exc:
         return PreflightResult(
-            name=name, passed=False,
+            name=name,
+            passed=False,
             detail=f"PostgreSQL unreachable: {exc}",
             fix="Start PostgreSQL and set APEX_DATABASE_URL  — e.g. postgresql://user:pass@localhost:5432/apex_v4",
         )
@@ -297,7 +303,8 @@ def _check_mt5(settings: dict[str, Any]) -> PreflightResult:
         account = mt5.account_info()
         if account is not None:
             return PreflightResult(
-                name=name, passed=True,
+                name=name,
+                passed=True,
                 detail=f"Login {account.login} on {account.server}, equity={account.equity}",
             )
         return PreflightResult(
@@ -308,7 +315,8 @@ def _check_mt5(settings: dict[str, Any]) -> PreflightResult:
         )
     except Exception as exc:
         return PreflightResult(
-            name=name, passed=False,
+            name=name,
+            passed=False,
             detail=f"MT5 initialisation failed: {exc}",
             fix="Ensure MT5 terminal is running. On Windows set mt5.mode=real in config/settings.yaml",
         )
@@ -347,7 +355,8 @@ def _check_paper_duration(session_factory: Any) -> PreflightResult:
             )
     except Exception as exc:
         return PreflightResult(
-            name=name, passed=False,
+            name=name,
+            passed=False,
             detail=f"Database query failed: {exc}",
             fix="Ensure PostgreSQL is running and trade_outcomes table is populated",
         )
@@ -359,9 +368,7 @@ def _check_no_state_drift(session_factory: Any) -> PreflightResult:
     try:
         with session_factory() as db:
             count = (
-                db.query(func.count(ReconciliationLog.id))
-                .filter(ReconciliationLog.mismatch_detected.is_(True))
-                .scalar()
+                db.query(func.count(ReconciliationLog.id)).filter(ReconciliationLog.mismatch_detected.is_(True)).scalar()
             ) or 0
 
             if count == 0:
@@ -378,7 +385,8 @@ def _check_no_state_drift(session_factory: Any) -> PreflightResult:
             )
     except Exception as exc:
         return PreflightResult(
-            name=name, passed=False,
+            name=name,
+            passed=False,
             detail=f"Database query failed: {exc}",
             fix="Ensure PostgreSQL is running and reconciliation_log table exists",
         )
@@ -435,7 +443,8 @@ def _check_secrets_env(secrets_path: str | Path = "config/secrets.env") -> Prefl
         content = path.read_text()
     except Exception as exc:
         return PreflightResult(
-            name=name, passed=False,
+            name=name,
+            passed=False,
             detail=f"Cannot read {path}: {exc}",
             fix=f"Check file permissions on {path}",
         )
@@ -518,19 +527,19 @@ def run_preflight(
 
     # Checks 1-7: hard requirements (any failure blocks startup)
     hard_checks: list[PreflightResult] = [
-        _check_redis(settings),                      # 1
-        _check_postgres(session_factory),             # 2
-        _check_mt5(settings),                         # 3
-        _check_kill_switch(session_factory),          # 4
-        _check_no_state_drift(session_factory),       # 5
-        _check_capital_allocation(settings),          # 6
-        _check_secrets_env(secrets_path),             # 7
+        _check_redis(settings),  # 1
+        _check_postgres(session_factory),  # 2
+        _check_mt5(settings),  # 3
+        _check_kill_switch(session_factory),  # 4
+        _check_no_state_drift(session_factory),  # 5
+        _check_capital_allocation(settings),  # 6
+        _check_secrets_env(secrets_path),  # 7
     ]
 
     # Checks 8-9: bypassable in paper mode
     bypassable_checks: list[PreflightResult] = [
-        _check_v3_data_imported(session_factory),     # 8
-        _check_segment_counts(session_factory),       # 9
+        _check_v3_data_imported(session_factory),  # 8
+        _check_segment_counts(session_factory),  # 9
     ]
 
     all_checks = hard_checks + bypassable_checks
@@ -565,17 +574,25 @@ def run_preflight(
     # Bypassable failures: block in live mode, warn in paper mode
     if bypass_failed:
         if trading_mode != "paper":
-            print(_red(_bold(
-                f"BLOCKED — {len(bypass_failed)} data check(s) failed. "
-                "Live mode requires full trade history. Fix them and retry."
-            )))
+            print(
+                _red(
+                    _bold(
+                        f"BLOCKED — {len(bypass_failed)} data check(s) failed. "
+                        "Live mode requires full trade history. Fix them and retry."
+                    )
+                )
+            )
             print()
             sys.exit(1)
         else:
-            print(_yellow(_bold(
-                "PAPER MODE ENABLED: Insufficient segment history. "
-                "Bootstrapping database natively with default minimum risk."
-            )))
+            print(
+                _yellow(
+                    _bold(
+                        "PAPER MODE ENABLED: Insufficient segment history. "
+                        "Bootstrapping database natively with default minimum risk."
+                    )
+                )
+            )
             print()
 
     # ── All passed (or bypassed) — operator confirmation ─────────────
@@ -588,7 +605,7 @@ def run_preflight(
         print(_green(_bold("All 9 checks passed.")))
     print()
     print(f"  Confirm startup with capital_allocation_pct = {_bold(str(cap_pct))}")
-    print(f'  Type exactly: CONFIRMED {cap_pct}')
+    print(f"  Type exactly: CONFIRMED {cap_pct}")
     print()
 
     try:
@@ -614,6 +631,7 @@ def run_preflight(
 
 
 # ── Context Initialisation ───────────────────────────────────────────
+
 
 def init_context(
     settings: dict[str, Any],
@@ -723,6 +741,7 @@ def init_context(
 
 # ── Core Pipeline Logic ──────────────────────────────────────────────
 
+
 async def process_tick(
     snapshot: MarketSnapshot,
     ctx: PipelineContext,
@@ -807,13 +826,21 @@ async def process_tick(
             continue
 
         decision = await ctx.governor.evaluate(
-            hyp, intent, snapshot, equity, current_dd, open_pos_dicts,
+            hyp,
+            intent,
+            snapshot,
+            equity,
+            current_dd,
+            open_pos_dicts,
         )
         if decision.decision != Decision.APPROVE:
             continue
 
         fill = ctx.gateway.execute(
-            hyp, decision, equity, approval_timestamp_ms,
+            hyp,
+            decision,
+            equity,
+            approval_timestamp_ms,
         )
         if fill is None:
             continue
@@ -841,6 +868,7 @@ async def process_tick(
 
 
 # ── Paper Position Close Detection ───────────────────────────────────
+
 
 def _check_paper_closes(snapshot: MarketSnapshot, ctx: PipelineContext) -> None:
     """Check if any paper positions hit SL or TP on the latest candle."""
@@ -890,6 +918,7 @@ def _check_paper_closes(snapshot: MarketSnapshot, ctx: PipelineContext) -> None:
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
+
 def _position_to_dict(pos: Any) -> dict[str, Any]:
     """Convert an MT5 Position dataclass to a dict for the risk governor."""
     return {
@@ -906,6 +935,7 @@ def _position_to_dict(pos: Any) -> dict[str, Any]:
 
 
 # ── Live Mode ────────────────────────────────────────────────────────
+
 
 async def _async_main() -> None:
     """Live pipeline loop: ZMQ PULL + background services."""
@@ -950,9 +980,7 @@ async def _async_main() -> None:
                 msg = await zmq_sock.recv_string()
                 snapshot = MarketSnapshot.model_validate_json(msg)
                 await process_tick(snapshot, ctx)
-                CYCLE_DURATION_MS.observe(
-                    (time.monotonic() - cycle_start) * 1000
-                )
+                CYCLE_DURATION_MS.observe((time.monotonic() - cycle_start) * 1000)
     except Exception:
         logger.exception("pipeline_unhandled_exception")
         await ctx.kill_switch.trigger("EMERGENCY", "unhandled exception in pipeline")
@@ -968,8 +996,11 @@ async def _async_main() -> None:
             if tick is not None:
                 cp = tick.bid if pos["direction"] == "LONG" else tick.ask
                 ctx.fill_tracker.record_close(
-                    order_id, cp, int(time.time() * 1000),
-                    pos["stop_loss"], "SHUTDOWN",
+                    order_id,
+                    cp,
+                    int(time.time() * 1000),
+                    pos["stop_loss"],
+                    "SHUTDOWN",
                 )
         ctx.paper_positions.clear()
 

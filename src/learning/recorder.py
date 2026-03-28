@@ -6,6 +6,7 @@ Writes to PostgreSQL trade_outcomes table via PerformanceDatabase.
 
 Architecture ref: APEX_V4_STRATEGY.md Section 5, Phase 4 (P4.3)
 """
+
 from __future__ import annotations
 
 from typing import Any

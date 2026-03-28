@@ -15,6 +15,7 @@ Output: RiskDecision (APPROVE | REJECT | REDUCE)
 
 Architecture ref: APEX_V4_STRATEGY.md Section 4, 7.4, 7.5
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -45,13 +46,13 @@ logger = structlog.get_logger(__name__)
 
 # ── thresholds ─────────────────────────────────────────────────────────
 
-_NET_EXPOSURE_LIMIT = 0.40      # Gate 4: 40% net USD exposure
-_NET_EXPOSURE_REDUCE = 0.50     # Gate 4: reduce by 50%
-_VAR_HARD_LIMIT = 0.05          # Gate 5: 5% → REJECT
-_VAR_SOFT_LIMIT = 0.03          # Gate 5: 3% → SOFT kill switch
-_DD_HARD_LIMIT = 0.08           # Gate 7: 8% → HARD + REJECT
-_DD_REDUCE_LIMIT = 0.05         # Gate 7: 5% → REDUCE 50%
-_DD_REDUCE_FACTOR = 0.50        # Gate 7: reduce by 50%
+_NET_EXPOSURE_LIMIT = 0.40  # Gate 4: 40% net USD exposure
+_NET_EXPOSURE_REDUCE = 0.50  # Gate 4: reduce by 50%
+_VAR_HARD_LIMIT = 0.05  # Gate 5: 5% → REJECT
+_VAR_SOFT_LIMIT = 0.03  # Gate 5: 3% → SOFT kill switch
+_DD_HARD_LIMIT = 0.08  # Gate 7: 8% → HARD + REJECT
+_DD_REDUCE_LIMIT = 0.05  # Gate 7: 5% → REDUCE 50%
+_DD_REDUCE_FACTOR = 0.50  # Gate 7: reduce by 50%
 
 
 class RiskGovernor:
@@ -153,8 +154,12 @@ class RiskGovernor:
 
         if invalid:
             logger.info(
-                "gate_3_REJECT", pair=pair, reason="invalid_signal_geometry",
-                sl=sl, tp=tp, entry_zone=hypothesis.entry_zone,
+                "gate_3_REJECT",
+                pair=pair,
+                reason="invalid_signal_geometry",
+                sl=sl,
+                tp=tp,
+                entry_zone=hypothesis.entry_zone,
                 direction=hypothesis.direction.value,
             )
             GATE_REJECTIONS_TOTAL.labels(gate_number="3", reason="invalid_signal_geometry").inc()
@@ -173,7 +178,8 @@ class RiskGovernor:
             size *= _NET_EXPOSURE_REDUCE
             risk_state = RiskState.THROTTLE
             logger.info(
-                "gate_4_REDUCE", pair=pair,
+                "gate_4_REDUCE",
+                pair=pair,
                 net_exposure=round(net_exposure, 4),
                 new_size=round(size, 6),
             )
@@ -189,7 +195,9 @@ class RiskGovernor:
 
         if var_pct > _VAR_HARD_LIMIT:
             logger.info(
-                "gate_5_REJECT", pair=pair, reason="var_limit_breached",
+                "gate_5_REJECT",
+                pair=pair,
+                reason="var_limit_breached",
                 var_pct=round(var_pct, 4),
             )
             GATE_REJECTIONS_TOTAL.labels(gate_number="5", reason="var_limit_breached").inc()
@@ -205,7 +213,8 @@ class RiskGovernor:
             await self._ks.trigger("SOFT", f"VaR {var_pct:.2%} > 3% soft limit")
             risk_state = RiskState.THROTTLE
             logger.info(
-                "gate_5_SOFT_TRIGGER", pair=pair,
+                "gate_5_SOFT_TRIGGER",
+                pair=pair,
                 var_pct=round(var_pct, 4),
             )
         else:
@@ -234,7 +243,9 @@ class RiskGovernor:
         if current_dd > _DD_HARD_LIMIT:
             await self._ks.trigger("HARD", f"max_drawdown: {current_dd:.2%}")
             logger.info(
-                "gate_7_REJECT", pair=pair, reason="max_drawdown",
+                "gate_7_REJECT",
+                pair=pair,
+                reason="max_drawdown",
                 current_dd=round(current_dd, 4),
             )
             GATE_REJECTIONS_TOTAL.labels(gate_number="7", reason="max_drawdown").inc()
@@ -250,7 +261,8 @@ class RiskGovernor:
             size *= _DD_REDUCE_FACTOR
             risk_state = RiskState.THROTTLE
             logger.info(
-                "gate_7_REDUCE", pair=pair,
+                "gate_7_REDUCE",
+                pair=pair,
                 current_dd=round(current_dd, 4),
                 new_size=round(size, 6),
             )
@@ -266,7 +278,8 @@ class RiskGovernor:
                 pair=pair,
             ).inc()
             logger.info(
-                "governor_REDUCE", pair=pair,
+                "governor_REDUCE",
+                pair=pair,
                 original=round(intent.suggested_size, 6),
                 final=round(size, 6),
                 risk_state=risk_state.value,
@@ -292,7 +305,8 @@ class RiskGovernor:
             pair=pair,
         ).inc()
         logger.info(
-            "governor_APPROVE", pair=pair,
+            "governor_APPROVE",
+            pair=pair,
             final_size=round(size, 6),
             risk_state=risk_state.value,
         )
@@ -340,9 +354,9 @@ class RiskGovernor:
                     usd_short += 1
             elif quote == "USD":
                 if d == "LONG":
-                    usd_short += 1   # buying EUR/selling USD
+                    usd_short += 1  # buying EUR/selling USD
                 elif d == "SHORT":
-                    usd_long += 1    # selling EUR/buying USD
+                    usd_long += 1  # selling EUR/buying USD
 
         total = len(open_positions)
         if total == 0:

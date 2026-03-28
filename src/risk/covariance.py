@@ -22,6 +22,7 @@ Exact Section 7.4 / 7.5 formulas — no deviation:
 
 Architecture ref: APEX_V4_STRATEGY.md Section 7.4, 7.5
 """
+
 from __future__ import annotations
 
 from math import exp, sqrt

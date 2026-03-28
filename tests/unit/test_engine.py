@@ -7,6 +7,7 @@ Tests cover:
   - None returns: no segment data, edge <= 0, dd >= 5%
   - Edge cases: boundary values, empty positions list
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -24,6 +25,7 @@ from src.market.schemas import (
 
 
 # ── fixtures ──────────────────────────────────────────────────────────────
+
 
 def _make_hypothesis(
     strategy: str = "MOMENTUM",
@@ -76,6 +78,7 @@ def _default_stats(
 
 # ── Kelly criterion math ─────────────────────────────────────────────────
 
+
 class TestKellyCriterion:
     """Verify exact Section 7.1 formulas."""
 
@@ -104,7 +107,7 @@ class TestKellyCriterion:
         assert result is not None
         # edge = 0.36 * 2.0 - 0.64 = 0.72 - 0.64 = 0.08
         edge = 0.36 * 2.0 - 0.64
-        f_star = edge / 2.0     # 0.04
+        f_star = edge / 2.0  # 0.04
         f_quarter = f_star * 0.25  # 0.01
         assert f_quarter < 0.02  # confirms no cap
         assert result.edge == pytest.approx(edge)
@@ -165,6 +168,7 @@ class TestKellyCriterion:
 
 # ── drawdown scalar ──────────────────────────────────────────────────────
 
+
 class TestDrawdownScalar:
     """dd_scalar branches per Section 7.1."""
 
@@ -223,6 +227,7 @@ class TestDrawdownScalar:
 
 # ── correlation scalar ───────────────────────────────────────────────────
 
+
 class TestCorrelationScalar:
     """correlation_scalar: >= 2 same-currency positions → 0.5."""
 
@@ -267,7 +272,9 @@ class TestCorrelationScalar:
         positions = [{"pair": "EURGBP"}, {"pair": "EURJPY"}]
 
         result = engine.calibrate(
-            _make_hypothesis(), "LONDON", current_dd=0.0,
+            _make_hypothesis(),
+            "LONDON",
+            current_dd=0.0,
             open_positions=positions,
         )
 
@@ -281,7 +288,9 @@ class TestCorrelationScalar:
         positions = [{"pair": "EURGBP"}, {"pair": "EURJPY"}]
 
         result = engine.calibrate(
-            _make_hypothesis(), "LONDON", current_dd=0.03,
+            _make_hypothesis(),
+            "LONDON",
+            current_dd=0.03,
             open_positions=positions,
         )
 
@@ -291,6 +300,7 @@ class TestCorrelationScalar:
 
 
 # ── None returns (rejection paths) ──────────────────────────────────────
+
 
 class TestRejections:
     """Every None return path is tested."""
@@ -334,6 +344,7 @@ class TestRejections:
 
 # ── segment routing ──────────────────────────────────────────────────────
 
+
 class TestSegmentRouting:
     """Verify strategy/regime/session are passed to PerformanceDatabase."""
 
@@ -341,28 +352,35 @@ class TestSegmentRouting:
         """Correct segment keys forwarded to DB."""
         engine = _make_engine(_default_stats())
         hyp = _make_hypothesis(
-            strategy="MOMENTUM", regime="TRENDING_UP",
+            strategy="MOMENTUM",
+            regime="TRENDING_UP",
         )
         engine.calibrate(hyp, "LONDON", current_dd=0.0)
 
         engine._perf_db.get_segment_stats.assert_called_once_with(
-            "MOMENTUM", "TRENDING_UP", "LONDON",
+            "MOMENTUM",
+            "TRENDING_UP",
+            "LONDON",
         )
 
     def test_mean_reversion_ranging_overlap(self):
         """MR + RANGING + OVERLAP segment."""
         engine = _make_engine(_default_stats())
         hyp = _make_hypothesis(
-            strategy="MEAN_REVERSION", regime="RANGING",
+            strategy="MEAN_REVERSION",
+            regime="RANGING",
         )
         engine.calibrate(hyp, "OVERLAP", current_dd=0.0)
 
         engine._perf_db.get_segment_stats.assert_called_once_with(
-            "MEAN_REVERSION", "RANGING", "OVERLAP",
+            "MEAN_REVERSION",
+            "RANGING",
+            "OVERLAP",
         )
 
 
 # ── mean reversion strategy ─────────────────────────────────────────────
+
 
 class TestMeanReversionCalibration:
     """MR hypotheses have conviction != None."""
@@ -381,6 +399,7 @@ class TestMeanReversionCalibration:
 
 # ── full integration scenario ────────────────────────────────────────────
 
+
 class TestIntegrationScenario:
     """End-to-end scenarios with realistic numbers."""
 
@@ -388,7 +407,7 @@ class TestIntegrationScenario:
         """p=0.55, b=2.0, dd=0.03, 1 correlated position."""
         p, b = 0.55, 2.0
         edge = p * b - (1 - p)  # 1.1 - 0.45 = 0.65
-        f_star = edge / b       # 0.325
+        f_star = edge / b  # 0.325
         f_quarter = f_star * 0.25  # 0.08125
         f_final = min(f_quarter, 0.02)  # 0.02
         dd_scalar = 0.5  # dd=0.03 → 0.5
@@ -398,7 +417,9 @@ class TestIntegrationScenario:
         engine = _make_engine(_default_stats(win_rate=p, avg_r=b))
         positions = [{"pair": "EURGBP"}]
         result = engine.calibrate(
-            _make_hypothesis(), "LONDON", current_dd=0.03,
+            _make_hypothesis(),
+            "LONDON",
+            current_dd=0.03,
             open_positions=positions,
         )
 
@@ -412,7 +433,9 @@ class TestIntegrationScenario:
         positions = [{"pair": "EURGBP"}, {"pair": "EURJPY"}]
 
         result = engine.calibrate(
-            _make_hypothesis(), "LONDON", current_dd=0.03,
+            _make_hypothesis(),
+            "LONDON",
+            current_dd=0.03,
             open_positions=positions,
         )
 
@@ -433,6 +456,7 @@ class TestIntegrationScenario:
 
 
 # ── capital allocation scaling ────────────────────────────────────────
+
 
 class TestCapitalAllocation:
     """capital_allocation_pct scales final_size proportionally."""
@@ -457,7 +481,9 @@ class TestCapitalAllocation:
         engine = _make_engine(_default_stats(), capital_allocation_pct=0.10)
         positions = [{"pair": "EURGBP"}, {"pair": "EURJPY"}]
         result = engine.calibrate(
-            _make_hypothesis(), "LONDON", current_dd=0.03,
+            _make_hypothesis(),
+            "LONDON",
+            current_dd=0.03,
             open_positions=positions,
         )
         assert result is not None

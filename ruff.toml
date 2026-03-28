@@ -1,0 +1,28 @@
+# APEX V4 — Ruff configuration
+# https://docs.astral.sh/ruff/configuration/
+
+# Line length matching existing code style (some lines reach ~120)
+line-length = 125
+
+[lint]
+select = ["E", "F", "W"]
+
+ignore = [
+    # E402: module-level import not at top — needed for Windows conditional imports
+    # (e.g. asyncio.WindowsSelectorEventLoopPolicy set before zmq imports)
+    "E402",
+    # E741: ambiguous variable name — 'l' is standard for low price in OHLCV
+    # domain context (alongside 'h' for high, 'o' for open, 'c' for close)
+    "E741",
+    # F401: unused imports — pre-existing across the codebase; clean up separately
+    "F401",
+    # F811: redefinition of unused name — pre-existing pattern in some test files
+    "F811",
+    # F841: local variable assigned but never used — pre-existing
+    "F841",
+]
+
+[format]
+# Use double quotes (Python default)
+quote-style = "double"
+indent-style = "space"

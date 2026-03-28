@@ -18,6 +18,7 @@ Section 7.3 — Conviction Score:
     C    = erf(|z| / sqrt(2))
     if C < 0.65: return None — insufficient edge
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -45,19 +46,19 @@ _MIN_CONVICTION = 0.65
 class OUParams:
     """Ornstein–Uhlenbeck process parameters from MLE."""
 
-    rho: float       # lag-1 autocorrelation
-    theta: float     # mean-reversion speed
-    mu: float        # long-run mean
+    rho: float  # lag-1 autocorrelation
+    theta: float  # mean-reversion speed
+    mu: float  # long-run mean
     sigma_sq: float  # process variance
-    half_life: float # ln(2) / θ in H1 candles
+    half_life: float  # ln(2) / θ in H1 candles
 
 
 @dataclass(frozen=True)
 class ConvictionResult:
     """Conviction score output."""
 
-    z_score: float     # (x_current - μ) / σ_eq
-    sigma_eq: float    # equilibrium std dev
+    z_score: float  # (x_current - μ) / σ_eq
+    sigma_eq: float  # equilibrium std dev
     conviction: float  # erf(|z| / sqrt(2)), bounded [0, 1]
 
 
@@ -103,11 +104,7 @@ def fit_ou(states: np.ndarray) -> OUParams | None:
 
     # ── ε_i = X[i+1] - X[i]·e^(-θΔt) - μ(1 - e^(-θΔt)) ────────
     e_neg_theta_dt = exp(-theta * _DELTA_T)
-    residuals = (
-        states[1:]
-        - states[:-1] * e_neg_theta_dt
-        - mu * (1.0 - e_neg_theta_dt)
-    )
+    residuals = states[1:] - states[:-1] * e_neg_theta_dt - mu * (1.0 - e_neg_theta_dt)
 
     # ── σ² = (2θ / (T(1 - e^(-2θΔt)))) × Σ(ε_i²) ──────────────
     T = len(residuals)
@@ -116,7 +113,7 @@ def fit_ou(states: np.ndarray) -> OUParams | None:
     if denom == 0:
         logger.info("ou_rejected", reason="zero_denominator_sigma")
         return None
-    sigma_sq = float((2.0 * theta / denom) * np.sum(residuals ** 2))
+    sigma_sq = float((2.0 * theta / denom) * np.sum(residuals**2))
 
     # ── half_life = ln(2) / θ ────────────────────────────────────
     half_life = log(2.0) / theta
@@ -124,7 +121,8 @@ def fit_ou(states: np.ndarray) -> OUParams | None:
     # Gate: half_life > 48 H1 candles → too slow.
     if half_life > _MAX_HALF_LIFE:
         logger.info(
-            "ou_rejected", reason="half_life_too_long",
+            "ou_rejected",
+            reason="half_life_too_long",
             half_life=round(half_life, 2),
         )
         return None

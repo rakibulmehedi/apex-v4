@@ -6,6 +6,7 @@ Validates the full pipeline: snapshot → features → regime → alpha
 Calls ``process_tick()`` directly (no ZMQ, no MarketFeed).
 Uses SQLite in-memory + FakeRedis — no external services.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -142,6 +143,7 @@ class FakeRedis:
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
+
 def _seed_trades(
     sf: Any,
     strategy: str = "MOMENTUM",
@@ -195,6 +197,7 @@ def _trending_candles(n: int, start: float = 1.08000) -> list[OHLCV]:
 def _ranging_candles(n: int, mid: float = 1.08000) -> list[OHLCV]:
     """Generate H1 candles oscillating around a mean (low ADX)."""
     import math
+
     candles = []
     for i in range(n):
         offset = math.sin(i * 0.1) * 0.002
@@ -254,6 +257,7 @@ def _build_ctx(sf: Any, redis: FakeRedis) -> PipelineContext:
     )
 
     from src.market.feed import MarketFeed
+
     feed = MarketFeed(client=mt5, pairs=["EURUSD"])
 
     return PipelineContext(
@@ -376,12 +380,19 @@ class TestPaperCloses:
         }
         # Simulate fill in FillTracker cache
         from src.execution.gateway import FillRecord
+
         fill = FillRecord(
-            order_id=999, pair="EURUSD", direction="LONG",
-            strategy="MOMENTUM", regime="TRENDING_UP",
-            requested_price=1.08000, fill_price=1.08000,
-            requested_volume=0.01, filled_volume=0.01,
-            slippage_points=0.0, is_paper=True,
+            order_id=999,
+            pair="EURUSD",
+            direction="LONG",
+            strategy="MOMENTUM",
+            regime="TRENDING_UP",
+            requested_price=1.08000,
+            fill_price=1.08000,
+            requested_volume=0.01,
+            filled_volume=0.01,
+            slippage_points=0.0,
+            is_paper=True,
             filled_at_ms=int(time.time() * 1000),
         )
         ctx.fill_tracker.record_fill(fill)
@@ -412,12 +423,19 @@ class TestPaperCloses:
             "take_profit": 1.09000,
         }
         from src.execution.gateway import FillRecord
+
         fill = FillRecord(
-            order_id=888, pair="EURUSD", direction="LONG",
-            strategy="MOMENTUM", regime="TRENDING_UP",
-            requested_price=1.08000, fill_price=1.08000,
-            requested_volume=0.01, filled_volume=0.01,
-            slippage_points=0.0, is_paper=True,
+            order_id=888,
+            pair="EURUSD",
+            direction="LONG",
+            strategy="MOMENTUM",
+            regime="TRENDING_UP",
+            requested_price=1.08000,
+            fill_price=1.08000,
+            requested_volume=0.01,
+            filled_volume=0.01,
+            slippage_points=0.0,
+            is_paper=True,
             filled_at_ms=int(time.time() * 1000),
         )
         ctx.fill_tracker.record_fill(fill)
@@ -448,12 +466,19 @@ class TestPaperCloses:
             "take_profit": 1.07000,
         }
         from src.execution.gateway import FillRecord
+
         fill = FillRecord(
-            order_id=777, pair="EURUSD", direction="SHORT",
-            strategy="MOMENTUM", regime="TRENDING_DOWN",
-            requested_price=1.08000, fill_price=1.08000,
-            requested_volume=0.01, filled_volume=0.01,
-            slippage_points=0.0, is_paper=True,
+            order_id=777,
+            pair="EURUSD",
+            direction="SHORT",
+            strategy="MOMENTUM",
+            regime="TRENDING_DOWN",
+            requested_price=1.08000,
+            fill_price=1.08000,
+            requested_volume=0.01,
+            filled_volume=0.01,
+            slippage_points=0.0,
+            is_paper=True,
             filled_at_ms=int(time.time() * 1000),
         )
         ctx.fill_tracker.record_fill(fill)
@@ -560,9 +585,11 @@ class TestAlphaEnginesNone:
 
         snap = _snapshot(_trending_candles(200))
 
-        with patch.object(ctx.momentum, "generate", return_value=None), \
-             patch.object(ctx.mr, "generate", return_value=None), \
-             patch.object(ctx.governor, "evaluate", new_callable=AsyncMock) as mock_eval:
+        with (
+            patch.object(ctx.momentum, "generate", return_value=None),
+            patch.object(ctx.mr, "generate", return_value=None),
+            patch.object(ctx.governor, "evaluate", new_callable=AsyncMock) as mock_eval,
+        ):
             await process_tick(snap, ctx, approval_timestamp_ms=int(time.time() * 1000))
 
         mock_eval.assert_not_called()
@@ -592,10 +619,12 @@ class TestAccountInfoNone:
 
         snap = _snapshot(_trending_candles(200))
 
-        with patch.object(ctx.momentum, "generate", return_value=hyp), \
-             patch.object(ctx.mr, "generate", return_value=None), \
-             patch.object(ctx.mt5, "account_info", return_value=None), \
-             patch.object(ctx.cal_engine, "calibrate") as mock_cal:
+        with (
+            patch.object(ctx.momentum, "generate", return_value=hyp),
+            patch.object(ctx.mr, "generate", return_value=None),
+            patch.object(ctx.mt5, "account_info", return_value=None),
+            patch.object(ctx.cal_engine, "calibrate") as mock_cal,
+        ):
             await process_tick(snap, ctx, approval_timestamp_ms=int(time.time() * 1000))
 
         mock_cal.assert_not_called()
@@ -631,11 +660,13 @@ class TestGovernorRejects:
 
         snap = _snapshot(_trending_candles(200))
 
-        with patch.object(ctx.momentum, "generate", return_value=hyp), \
-             patch.object(ctx.mr, "generate", return_value=None), \
-             patch.object(ctx.cal_engine, "calibrate", return_value=MagicMock()), \
-             patch.object(ctx.governor, "evaluate", new_callable=AsyncMock, return_value=reject_decision), \
-             patch.object(ctx.gateway, "execute") as mock_exec:
+        with (
+            patch.object(ctx.momentum, "generate", return_value=hyp),
+            patch.object(ctx.mr, "generate", return_value=None),
+            patch.object(ctx.cal_engine, "calibrate", return_value=MagicMock()),
+            patch.object(ctx.governor, "evaluate", new_callable=AsyncMock, return_value=reject_decision),
+            patch.object(ctx.gateway, "execute") as mock_exec,
+        ):
             await process_tick(snap, ctx, approval_timestamp_ms=int(time.time() * 1000))
 
         mock_exec.assert_not_called()
@@ -670,12 +701,14 @@ class TestGatewayNone:
 
         snap = _snapshot(_trending_candles(200))
 
-        with patch.object(ctx.momentum, "generate", return_value=hyp), \
-             patch.object(ctx.mr, "generate", return_value=None), \
-             patch.object(ctx.cal_engine, "calibrate", return_value=MagicMock()), \
-             patch.object(ctx.governor, "evaluate", new_callable=AsyncMock, return_value=approve_decision), \
-             patch.object(ctx.gateway, "execute", return_value=None), \
-             patch.object(ctx.fill_tracker, "record_fill") as mock_record:
+        with (
+            patch.object(ctx.momentum, "generate", return_value=hyp),
+            patch.object(ctx.mr, "generate", return_value=None),
+            patch.object(ctx.cal_engine, "calibrate", return_value=MagicMock()),
+            patch.object(ctx.governor, "evaluate", new_callable=AsyncMock, return_value=approve_decision),
+            patch.object(ctx.gateway, "execute", return_value=None),
+            patch.object(ctx.fill_tracker, "record_fill") as mock_record,
+        ):
             await process_tick(snap, ctx, approval_timestamp_ms=int(time.time() * 1000))
 
         mock_record.assert_not_called()
@@ -693,17 +726,21 @@ class TestGracefulShutdown:
             # Let the loop run once, then signal shutdown
             return call_count > 1
 
-        with patch("src.pipeline.load_settings", return_value={
-                "system": {"mode": "paper"},
-                "mt5": {"mode": "stub", "pairs": ["EURUSD"]},
-                "prometheus": {"port": 0},
-            }), \
-             patch("src.pipeline.run_preflight", return_value=0.10), \
-             patch("src.pipeline.init_context") as mock_init, \
-             patch("src.pipeline.start_metrics_server"), \
-             patch("ops.apex_wrapper.is_shutting_down", side_effect=mock_is_shutting_down), \
-             patch("zmq.asyncio.Context") as mock_zmq_ctx:
-
+        with (
+            patch(
+                "src.pipeline.load_settings",
+                return_value={
+                    "system": {"mode": "paper"},
+                    "mt5": {"mode": "stub", "pairs": ["EURUSD"]},
+                    "prometheus": {"port": 0},
+                },
+            ),
+            patch("src.pipeline.run_preflight", return_value=0.10),
+            patch("src.pipeline.init_context") as mock_init,
+            patch("src.pipeline.start_metrics_server"),
+            patch("ops.apex_wrapper.is_shutting_down", side_effect=mock_is_shutting_down),
+            patch("zmq.asyncio.Context") as mock_zmq_ctx,
+        ):
             # Set up mock context
             mock_ctx = MagicMock()
             mock_ctx.kill_switch.recover_from_db = AsyncMock()
@@ -735,17 +772,21 @@ class TestUnhandledException:
     @pytest.mark.asyncio
     async def test_exception_triggers_emergency_kill_switch(self):
         """Unhandled exception → EMERGENCY kill switch + sys.exit(1)."""
-        with patch("src.pipeline.load_settings", return_value={
-                "system": {"mode": "paper"},
-                "mt5": {"mode": "stub", "pairs": ["EURUSD"]},
-                "prometheus": {"port": 0},
-            }), \
-             patch("src.pipeline.run_preflight", return_value=0.10), \
-             patch("src.pipeline.init_context") as mock_init, \
-             patch("src.pipeline.start_metrics_server"), \
-             patch("ops.apex_wrapper.is_shutting_down", return_value=False), \
-             patch("zmq.asyncio.Context") as mock_zmq_ctx:
-
+        with (
+            patch(
+                "src.pipeline.load_settings",
+                return_value={
+                    "system": {"mode": "paper"},
+                    "mt5": {"mode": "stub", "pairs": ["EURUSD"]},
+                    "prometheus": {"port": 0},
+                },
+            ),
+            patch("src.pipeline.run_preflight", return_value=0.10),
+            patch("src.pipeline.init_context") as mock_init,
+            patch("src.pipeline.start_metrics_server"),
+            patch("ops.apex_wrapper.is_shutting_down", return_value=False),
+            patch("zmq.asyncio.Context") as mock_zmq_ctx,
+        ):
             # Set up mock context
             mock_ctx = MagicMock()
             mock_ctx.kill_switch.recover_from_db = AsyncMock()
@@ -770,6 +811,4 @@ class TestUnhandledException:
                 await _async_main()
 
             assert exc_info.value.code == 1
-            mock_ctx.kill_switch.trigger.assert_awaited_once_with(
-                "EMERGENCY", "unhandled exception in pipeline"
-            )
+            mock_ctx.kill_switch.trigger.assert_awaited_once_with("EMERGENCY", "unhandled exception in pipeline")

@@ -7,6 +7,7 @@ Runs 6 months of synthetic EURUSD H1 data through:
 Collects regime distribution, signal counts, and key metrics.
 Does NOT execute trades — this validates signal generation only.
 """
+
 from __future__ import annotations
 
 import sys
@@ -59,26 +60,18 @@ class BacktestStats:
     @property
     def regime_pcts(self) -> dict[str, float]:
         total = self.candles_classified or 1
-        return {
-            regime: round(count / total * 100, 1)
-            for regime, count in self.regime_counts.items()
-        }
+        return {regime: round(count / total * 100, 1) for regime, count in self.regime_counts.items()}
 
     @property
     def trending_pct(self) -> float:
         total = self.candles_classified or 1
-        trending = (
-            self.regime_counts.get("TRENDING_UP", 0)
-            + self.regime_counts.get("TRENDING_DOWN", 0)
-        )
+        trending = self.regime_counts.get("TRENDING_UP", 0) + self.regime_counts.get("TRENDING_DOWN", 0)
         return round(trending / total * 100, 1)
 
     @property
     def ranging_pct(self) -> float:
         total = self.candles_classified or 1
-        return round(
-            self.regime_counts.get("RANGING", 0) / total * 100, 1
-        )
+        return round(self.regime_counts.get("RANGING", 0) / total * 100, 1)
 
     @property
     def avg_momentum_r(self) -> float | None:
@@ -147,7 +140,10 @@ class Phase2Strategy(bt.Strategy):
         adx_arr = talib.ADX(high, low, close, timeperiod=14)
         ema_arr = talib.EMA(close, timeperiod=200)
         bb_upper, bb_mid, bb_lower = talib.BBANDS(
-            close, timeperiod=20, nbdevup=2, nbdevdn=2,
+            close,
+            timeperiod=20,
+            nbdevup=2,
+            nbdevdn=2,
         )
 
         atr_14 = float(atr_arr[-1])
@@ -207,10 +203,10 @@ class Phase2Strategy(bt.Strategy):
             pair="EURUSD",
             timestamp=int(dt.timestamp() * 1000),
             candles=CandleMap(
-                M5=h1_candles[-50:],    # last 50 bars
-                M15=h1_candles[-50:],   # last 50 bars
-                H1=h1_candles,          # all H1 bars
-                H4=h1_candles[-50:],    # last 50 bars
+                M5=h1_candles[-50:],  # last 50 bars
+                M15=h1_candles[-50:],  # last 50 bars
+                H1=h1_candles,  # all H1 bars
+                H4=h1_candles[-50:],  # last 50 bars
             ),
             spread_points=_SPREAD,
             session=session,
@@ -270,8 +266,7 @@ def print_report(stats: BacktestStats) -> None:
     print("\n" + "=" * 60)
     print("  APEX V4 — PHASE 2 BACKTEST VALIDATION")
     print("=" * 60)
-    print(f"\nADX thresholds: trend={stats.adx_trend_threshold}, "
-          f"range={stats.adx_range_threshold}")
+    print(f"\nADX thresholds: trend={stats.adx_trend_threshold}, range={stats.adx_range_threshold}")
     print(f"\nTotal candles:      {stats.total_candles}")
     print(f"Candles classified: {stats.candles_classified}")
     print(f"Warmup skipped:     {stats.total_candles - stats.candles_classified}")
@@ -283,10 +278,8 @@ def print_report(stats: BacktestStats) -> None:
 
     trending = stats.trending_pct
     ranging = stats.ranging_pct
-    print(f"\n  Trending (UP+DOWN): {trending:.1f}%  "
-          f"{'✓' if 25 <= trending <= 35 else '✗'} target 25-35%")
-    print(f"  Ranging:            {ranging:.1f}%  "
-          f"{'✓' if 35 <= ranging <= 45 else '✗'} target 35-45%")
+    print(f"\n  Trending (UP+DOWN): {trending:.1f}%  {'✓' if 25 <= trending <= 35 else '✗'} target 25-35%")
+    print(f"  Ranging:            {ranging:.1f}%  {'✓' if 35 <= ranging <= 45 else '✗'} target 35-45%")
 
     print("\n── Signal Statistics ────────────────────────────")
     print(f"  Momentum signals:  {stats.momentum_signals}")
@@ -311,8 +304,7 @@ def main() -> None:
     max_attempts = 5
 
     for attempt in range(1, max_attempts + 1):
-        print(f"\n>>> Backtest attempt {attempt}/{max_attempts} "
-              f"(trend={adx_trend}, range={adx_range})")
+        print(f"\n>>> Backtest attempt {attempt}/{max_attempts} (trend={adx_trend}, range={adx_range})")
 
         stats = run_backtest(adx_trend=adx_trend, adx_range=adx_range)
         in_range = print_report(stats)
@@ -327,24 +319,19 @@ def main() -> None:
 
         if trending < 25:
             adx_trend -= 2
-            print(f"  → trending {trending:.1f}% < 25%: "
-                  f"lowering adx_trend to {adx_trend}")
+            print(f"  → trending {trending:.1f}% < 25%: lowering adx_trend to {adx_trend}")
         elif trending > 35:
             adx_trend += 2
-            print(f"  → trending {trending:.1f}% > 35%: "
-                  f"raising adx_trend to {adx_trend}")
+            print(f"  → trending {trending:.1f}% > 35%: raising adx_trend to {adx_trend}")
 
         if ranging < 35:
             adx_range += 2
-            print(f"  → ranging {ranging:.1f}% < 35%: "
-                  f"raising adx_range to {adx_range}")
+            print(f"  → ranging {ranging:.1f}% < 35%: raising adx_range to {adx_range}")
         elif ranging > 45:
             adx_range -= 2
-            print(f"  → ranging {ranging:.1f}% > 45%: "
-                  f"lowering adx_range to {adx_range}")
+            print(f"  → ranging {ranging:.1f}% > 45%: lowering adx_range to {adx_range}")
     else:
-        print("WARNING: Could not reach target distribution "
-              f"in {max_attempts} attempts.")
+        print(f"WARNING: Could not reach target distribution in {max_attempts} attempts.")
         print(f"Final thresholds: trend={adx_trend}, range={adx_range}")
 
 

@@ -3,6 +3,7 @@
 Covers: regime gate, candle gate, ADF gate, pipeline integration,
 direction from z-score, R:R gate, setup score components.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -26,6 +27,7 @@ from src.alpha.mean_reversion import MeanReversionEngine
 # Helpers — build mean-reverting data
 # ---------------------------------------------------------------------------
 
+
 def _ou_candles(
     mu: float = 1.10000,
     theta: float = 0.08,
@@ -42,20 +44,21 @@ def _ou_candles(
         prices[i + 1] = prices[i] + theta * (mu - prices[i]) + sigma * rng.normal()
     candles = []
     for p in prices:
-        candles.append(OHLCV(
-            open=p - 0.0001, high=p + 0.0005, low=p - 0.0005,
-            close=float(p), volume=100,
-        ))
+        candles.append(
+            OHLCV(
+                open=p - 0.0001,
+                high=p + 0.0005,
+                low=p - 0.0005,
+                close=float(p),
+                volume=100,
+            )
+        )
     return candles
 
 
 def _flat_candles(close: float, n: int) -> list[OHLCV]:
     """Flat candles at a fixed price."""
-    return [
-        OHLCV(open=close, high=close + 0.0001, low=close - 0.0001,
-              close=close, volume=100)
-        for _ in range(n)
-    ]
+    return [OHLCV(open=close, high=close + 0.0001, low=close - 0.0001, close=close, volume=100) for _ in range(n)]
 
 
 def _mr_snapshot(
@@ -108,6 +111,7 @@ def _make_fv(
 # Regime gate
 # ---------------------------------------------------------------------------
 
+
 class TestRegimeGate:
     """Engine only fires on RANGING."""
 
@@ -144,6 +148,7 @@ class TestRegimeGate:
 # Candle count gate
 # ---------------------------------------------------------------------------
 
+
 class TestCandleGate:
     """Minimum 200 H1 candles required."""
 
@@ -165,6 +170,7 @@ class TestCandleGate:
 # ADF gate
 # ---------------------------------------------------------------------------
 
+
 class TestADFGate:
     """ADF p-value must be < 0.05 for stationarity."""
 
@@ -174,10 +180,7 @@ class TestADFGate:
         rng = np.random.default_rng(42)
         # Random walk: X[i+1] = X[i] + noise.
         prices = np.cumsum(rng.normal(0, 0.001, 200)) + 1.10
-        candles = [
-            OHLCV(open=p, high=p + 0.0005, low=p - 0.0005, close=float(p), volume=100)
-            for p in prices
-        ]
+        candles = [OHLCV(open=p, high=p + 0.0005, low=p - 0.0005, close=float(p), volume=100) for p in prices]
         fv = _make_fv()
         snap = _mr_snapshot(h1_candles=candles)
         assert eng.generate(fv, Regime.RANGING, snap) is None
@@ -195,6 +198,7 @@ class TestADFGate:
 # Pipeline integration — full signal
 # ---------------------------------------------------------------------------
 
+
 class TestFullPipeline:
     """End-to-end: stationary data → signal or principled rejection."""
 
@@ -203,7 +207,12 @@ class TestFullPipeline:
         eng = MeanReversionEngine()
         # Start well above mean to get high z-score / conviction.
         candles = _ou_candles(
-            mu=1.10, theta=0.15, sigma=0.001, n=200, x0=1.1080, seed=5,
+            mu=1.10,
+            theta=0.15,
+            sigma=0.001,
+            n=200,
+            x0=1.1080,
+            seed=5,
         )
         fv = _make_fv(atr=0.00050)  # Small ATR so R:R is favorable.
         snap = _mr_snapshot(h1_candles=candles)
@@ -216,7 +225,12 @@ class TestFullPipeline:
         """If signal is produced, strategy must be MEAN_REVERSION."""
         eng = MeanReversionEngine()
         candles = _ou_candles(
-            mu=1.10, theta=0.15, sigma=0.001, n=200, x0=1.1080, seed=5,
+            mu=1.10,
+            theta=0.15,
+            sigma=0.001,
+            n=200,
+            x0=1.1080,
+            seed=5,
         )
         fv = _make_fv(atr=0.00050)
         snap = _mr_snapshot(h1_candles=candles)
@@ -231,7 +245,12 @@ class TestFullPipeline:
         eng = MeanReversionEngine()
         # Start above mean → z > 0 → SHORT.
         candles_above = _ou_candles(
-            mu=1.10, theta=0.15, sigma=0.001, n=200, x0=1.1080, seed=5,
+            mu=1.10,
+            theta=0.15,
+            sigma=0.001,
+            n=200,
+            x0=1.1080,
+            seed=5,
         )
         fv = _make_fv(atr=0.00050)
         snap = _mr_snapshot(h1_candles=candles_above)
@@ -245,6 +264,7 @@ class TestFullPipeline:
 # R:R gate
 # ---------------------------------------------------------------------------
 
+
 class TestRRGate:
     """expected_R must be >= 1.8."""
 
@@ -253,7 +273,12 @@ class TestRRGate:
         eng = MeanReversionEngine()
         # Small deviation from mean but huge ATR → SL far, TP close → low R.
         candles = _ou_candles(
-            mu=1.10, theta=0.15, sigma=0.0005, n=200, x0=1.1005, seed=5,
+            mu=1.10,
+            theta=0.15,
+            sigma=0.0005,
+            n=200,
+            x0=1.1005,
+            seed=5,
         )
         fv = _make_fv(atr=0.01000)  # Very large ATR
         snap = _mr_snapshot(h1_candles=candles)
@@ -266,13 +291,19 @@ class TestRRGate:
 # Setup score
 # ---------------------------------------------------------------------------
 
+
 class TestSetupScore:
     """Score: +10 ADF<0.01, +10 HL<24, +5 session, +5 conviction>0.80."""
 
     def test_score_is_valid_range(self) -> None:
         eng = MeanReversionEngine()
         candles = _ou_candles(
-            mu=1.10, theta=0.15, sigma=0.001, n=200, x0=1.1080, seed=5,
+            mu=1.10,
+            theta=0.15,
+            sigma=0.001,
+            n=200,
+            x0=1.1080,
+            seed=5,
         )
         fv = _make_fv(atr=0.00050)
         snap = _mr_snapshot(h1_candles=candles)
@@ -284,6 +315,7 @@ class TestSetupScore:
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestEdgeCases:
     """Boundary conditions and error handling."""
@@ -302,7 +334,12 @@ class TestEdgeCases:
         """Engine works for any pair."""
         eng = MeanReversionEngine()
         candles = _ou_candles(
-            mu=1.26, theta=0.15, sigma=0.001, n=200, x0=1.2680, seed=5,
+            mu=1.26,
+            theta=0.15,
+            sigma=0.001,
+            n=200,
+            x0=1.2680,
+            seed=5,
         )
         fv = _make_fv(pair="GBPUSD", atr=0.00050, ema_200=1.26)
         snap = _mr_snapshot(h1_candles=candles, pair="GBPUSD")

@@ -15,6 +15,7 @@ Key thresholds (from config/settings.yaml & Section 7):
   |z-score| < 3.0 (3σ guard)
   expected_R ≥ 1.8
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -88,8 +89,10 @@ class MeanReversionEngine:
         # ── Gate 1: regime must be RANGING ────────────────────────────
         if regime != Regime.RANGING:
             logger.info(
-                "mr_rejected", pair=fv.pair,
-                reason="regime_not_ranging", regime=regime.value,
+                "mr_rejected",
+                pair=fv.pair,
+                reason="regime_not_ranging",
+                regime=regime.value,
             )
             return None
 
@@ -97,14 +100,16 @@ class MeanReversionEngine:
         h1_candles = snapshot.candles.H1
         if len(h1_candles) < _MIN_H1_CANDLES:
             logger.info(
-                "mr_rejected", pair=fv.pair,
+                "mr_rejected",
+                pair=fv.pair,
                 reason="insufficient_h1_candles",
                 count=len(h1_candles),
             )
             return None
 
         closes = np.array(
-            [c.close for c in h1_candles], dtype=np.float64,
+            [c.close for c in h1_candles],
+            dtype=np.float64,
         )
 
         # ── Gate 3: ADF stationarity test ─────────────────────────────
@@ -112,7 +117,8 @@ class MeanReversionEngine:
             adf_result = adfuller(closes, maxlag=1, regression="c", autolag=None)
         except ValueError:
             logger.info(
-                "mr_rejected", pair=fv.pair,
+                "mr_rejected",
+                pair=fv.pair,
                 reason="adf_invalid_input",
             )
             return None
@@ -120,7 +126,8 @@ class MeanReversionEngine:
 
         if adf_pvalue >= self._adf_pvalue:
             logger.info(
-                "mr_rejected", pair=fv.pair,
+                "mr_rejected",
+                pair=fv.pair,
                 reason="adf_not_stationary",
                 adf_pvalue=round(adf_pvalue, 4),
             )
@@ -133,7 +140,8 @@ class MeanReversionEngine:
         ou_params = fit_ou(filtered)
         if ou_params is None:
             logger.info(
-                "mr_rejected", pair=fv.pair,
+                "mr_rejected",
+                pair=fv.pair,
                 reason="ou_fit_failed",
             )
             return None
@@ -141,13 +149,15 @@ class MeanReversionEngine:
         # ── Conviction score ──────────────────────────────────────────
         x_current = float(filtered[-1])
         conv_result = compute_conviction(
-            x_current, ou_params,
+            x_current,
+            ou_params,
             zscore_guard=self._zscore_guard,
             min_conviction=self._min_conviction,
         )
         if conv_result is None:
             logger.info(
-                "mr_rejected", pair=fv.pair,
+                "mr_rejected",
+                pair=fv.pair,
                 reason="conviction_gate_failed",
             )
             return None
@@ -155,10 +165,7 @@ class MeanReversionEngine:
         # ── Direction from z-score ────────────────────────────────────
         # z < 0 → price below mean → go LONG (expect reversion up)
         # z > 0 → price above mean → go SHORT (expect reversion down)
-        direction = (
-            Direction.LONG if conv_result.z_score < 0
-            else Direction.SHORT
-        )
+        direction = Direction.LONG if conv_result.z_score < 0 else Direction.SHORT
 
         # ── Entry zone, SL, TP ────────────────────────────────────────
         atr = fv.atr_14
@@ -183,7 +190,8 @@ class MeanReversionEngine:
 
         if sl_distance == 0:
             logger.info(
-                "mr_rejected", pair=fv.pair,
+                "mr_rejected",
+                pair=fv.pair,
                 reason="zero_sl_distance",
             )
             return None
@@ -192,7 +200,8 @@ class MeanReversionEngine:
 
         if expected_r < self._min_rr:
             logger.info(
-                "mr_rejected", pair=fv.pair,
+                "mr_rejected",
+                pair=fv.pair,
                 reason="expected_r_below_min",
                 expected_r=expected_r,
             )
@@ -200,11 +209,17 @@ class MeanReversionEngine:
 
         # ── Setup score (0–30) ────────────────────────────────────────
         score = 0
-        score += 10 if adf_pvalue < 0.01 else 0       # +10 strong stationarity
+        score += 10 if adf_pvalue < 0.01 else 0  # +10 strong stationarity
         score += 10 if ou_params.half_life < 24 else 0  # +10 fast reversion
-        score += 5 if fv.session in (                   # +5 LONDON/OVERLAP
-            TradingSession.LONDON, TradingSession.OVERLAP,
-        ) else 0
+        score += (
+            5
+            if fv.session
+            in (  # +5 LONDON/OVERLAP
+                TradingSession.LONDON,
+                TradingSession.OVERLAP,
+            )
+            else 0
+        )
         score += 5 if conv_result.conviction > 0.80 else 0  # +5 high conviction
 
         # ── Build hypothesis ──────────────────────────────────────────

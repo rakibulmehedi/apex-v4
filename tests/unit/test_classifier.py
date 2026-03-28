@@ -3,6 +3,7 @@
 Covers all 6 classification branches + edge cases with synthetic FeatureVectors.
 Default thresholds: adx_trend=31, adx_range=22 (from P2.8 backtest validation).
 """
+
 from __future__ import annotations
 
 import pytest
@@ -14,6 +15,7 @@ from src.regime.classifier import RegimeClassifier
 # ---------------------------------------------------------------------------
 # Helpers — build synthetic FeatureVectors
 # ---------------------------------------------------------------------------
+
 
 def _make_fv(
     adx: float = 35.0,
@@ -42,6 +44,7 @@ def _make_fv(
 # Rule 1: news_blackout → UNDEFINED
 # ---------------------------------------------------------------------------
 
+
 class TestNewsBlackout:
     """Rule 1: news_blackout is True → UNDEFINED (highest priority)."""
 
@@ -67,6 +70,7 @@ class TestNewsBlackout:
 # Rule 2: spread_ok is False → UNDEFINED
 # ---------------------------------------------------------------------------
 
+
 class TestSpreadNotOk:
     """Rule 2: spread_ok is False → UNDEFINED (second priority)."""
 
@@ -89,6 +93,7 @@ class TestSpreadNotOk:
 # ---------------------------------------------------------------------------
 # Rule 3: ADX > 31 AND close > EMA200 → TRENDING_UP
 # ---------------------------------------------------------------------------
+
 
 class TestTrendingUp:
     """Rule 3: ADX > trend threshold (31) AND close > EMA200."""
@@ -113,6 +118,7 @@ class TestTrendingUp:
 # Rule 4: ADX > 31 AND close < EMA200 → TRENDING_DOWN
 # ---------------------------------------------------------------------------
 
+
 class TestTrendingDown:
     """Rule 4: ADX > trend threshold (31) AND close < EMA200."""
 
@@ -136,6 +142,7 @@ class TestTrendingDown:
 # Rule 5: ADX < 22 → RANGING
 # ---------------------------------------------------------------------------
 
+
 class TestRanging:
     """Rule 5: ADX < range threshold (22) → RANGING."""
 
@@ -158,6 +165,7 @@ class TestRanging:
 # ---------------------------------------------------------------------------
 # Rule 6: ADX 22-31 (dead zone) → UNDEFINED
 # ---------------------------------------------------------------------------
+
 
 class TestDeadZone:
     """Rule 6: ADX between range (22) and trend (31) thresholds → UNDEFINED."""
@@ -188,6 +196,7 @@ class TestDeadZone:
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestEdgeCases:
     """Boundary conditions and special scenarios."""

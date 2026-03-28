@@ -10,6 +10,7 @@ All connection details come from environment variables:
   - ``APEX_REDIS_URL``  (default ``redis://localhost:6379/0``)
   - ``APEX_DATABASE_URL`` (default ``postgresql://localhost:5432/apex_v4``)
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -34,14 +35,15 @@ logger = structlog.get_logger(__name__)
 
 # ── TTL constants (strategy spec) ────────────────────────────────────────
 
-_FV_TTL = 300           # fv:{pair}        — 5 minutes
-_POSITIONS_TTL = 60     # open_positions    — 1 minute
+_FV_TTL = 300  # fv:{pair}        — 5 minutes
+_POSITIONS_TTL = 60  # open_positions    — 1 minute
 _NEWS_KEY_PREFIX = "news_blackout_"
 
 
 # ═════════════════════════════════════════════════════════════════════════
 # RedisStateManager
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class RedisStateManager:
     """TTL-managed state cache backed by Redis.
@@ -100,7 +102,10 @@ class RedisStateManager:
     # ── news blackout ────────────────────────────────────────────────
 
     def set_news_blackout(
-        self, pair: str, active: bool, duration_minutes: int = 30,
+        self,
+        pair: str,
+        active: bool,
+        duration_minutes: int = 30,
     ) -> None:
         """Set or clear a news-blackout flag for *pair*.
 
@@ -117,6 +122,7 @@ class RedisStateManager:
 # ═════════════════════════════════════════════════════════════════════════
 # PostgresWriter
 # ═════════════════════════════════════════════════════════════════════════
+
 
 class PostgresWriter:
     """Async, non-blocking PostgreSQL writer.
@@ -212,7 +218,9 @@ class PostgresWriter:
     # ── kill switch event ────────────────────────────────────────────
 
     async def write_kill_switch_event(
-        self, level: str, reason: str,
+        self,
+        level: str,
+        reason: str,
     ) -> None:
         """Insert a kill-switch audit event (non-blocking)."""
         await asyncio.to_thread(self._sync_write_ks, level, reason)

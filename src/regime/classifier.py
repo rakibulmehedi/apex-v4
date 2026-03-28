@@ -13,6 +13,7 @@ Rules (ADR-001), evaluated in exact order:
 
 No ML. No probabilities.
 """
+
 from __future__ import annotations
 
 import structlog
@@ -64,36 +65,54 @@ class RegimeClassifier:
         # Rule 1: news blackout → no trade
         if fv.news_blackout:
             return self._log_and_return(
-                fv, close_price, Regime.UNDEFINED, "news_blackout",
+                fv,
+                close_price,
+                Regime.UNDEFINED,
+                "news_blackout",
             )
 
         # Rule 2: spread too wide → no trade
         if not fv.spread_ok:
             return self._log_and_return(
-                fv, close_price, Regime.UNDEFINED, "spread_not_ok",
+                fv,
+                close_price,
+                Regime.UNDEFINED,
+                "spread_not_ok",
             )
 
         # Rule 3: strong trend, price above EMA → trending up
         if fv.adx_14 > self._adx_trend and close_price > fv.ema_200:
             return self._log_and_return(
-                fv, close_price, Regime.TRENDING_UP, "adx_above_trend_close_above_ema",
+                fv,
+                close_price,
+                Regime.TRENDING_UP,
+                "adx_above_trend_close_above_ema",
             )
 
         # Rule 4: strong trend, price below EMA → trending down
         if fv.adx_14 > self._adx_trend and close_price < fv.ema_200:
             return self._log_and_return(
-                fv, close_price, Regime.TRENDING_DOWN, "adx_above_trend_close_below_ema",
+                fv,
+                close_price,
+                Regime.TRENDING_DOWN,
+                "adx_above_trend_close_below_ema",
             )
 
         # Rule 5: weak ADX → ranging
         if fv.adx_14 < self._adx_range:
             return self._log_and_return(
-                fv, close_price, Regime.RANGING, "adx_below_range",
+                fv,
+                close_price,
+                Regime.RANGING,
+                "adx_below_range",
             )
 
         # Rule 6: ADX in dead zone (20-25) → undefined
         return self._log_and_return(
-            fv, close_price, Regime.UNDEFINED, "adx_dead_zone",
+            fv,
+            close_price,
+            Regime.UNDEFINED,
+            "adx_dead_zone",
         )
 
     def _log_and_return(
