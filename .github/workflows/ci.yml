@@ -24,10 +24,8 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install TA-Lib C library
-        run: sudo apt-get update && sudo apt-get install -y libta-lib-dev
-
       - name: Install Python dependencies
+        # TA-Lib==0.6.8 bundles the C library (no apt-get needed since v0.5.0)
         run: pip install -r requirements.txt
 
       - name: Run test suite
@@ -86,10 +84,8 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install TA-Lib C library
-        run: sudo apt-get update && sudo apt-get install -y libta-lib-dev
-
       - name: Install Python dependencies
+        # TA-Lib==0.6.8 bundles the C library (no apt-get needed since v0.5.0)
         run: pip install -r requirements.txt
 
       - name: Verify Kelly criterion + CalibrationEngine formulas
