@@ -44,15 +44,32 @@ class CalibrationEngine:
     ----------
     perf_db
         PerformanceDatabase for segment lookups.
+    min_live_trades_for_edge
+        Minimum live trades (fill_id IS NOT NULL) before trusting edge
+        calculation.  Below this threshold and with *bootstrap_mode_fallback*
+        enabled, the engine returns minimum position size instead of rejecting.
+    bootstrap_mode_fallback
+        When True and live trade count < *min_live_trades_for_edge*, return
+        the minimum position size (0.001 equity fraction → 0.01 lots via
+        gateway clamp) instead of rejecting on negative bootstrap edge.
     """
+
+    # Minimum suggested_size during bootstrap fallback.  The execution
+    # gateway clamps volume to 0.01 lots, so this fraction guarantees
+    # the smallest tradeable position for any practical equity level.
+    _BOOTSTRAP_MIN_SIZE: float = 0.001
 
     def __init__(
         self,
         perf_db: PerformanceDatabase,
         capital_allocation_pct: float = 1.0,
+        min_live_trades_for_edge: int = 10,
+        bootstrap_mode_fallback: bool = True,
     ) -> None:
         self._perf_db = perf_db
         self._capital_allocation_pct = capital_allocation_pct
+        self._min_live_trades = min_live_trades_for_edge
+        self._bootstrap_fallback = bootstrap_mode_fallback
 
     # ── public API ─────────────────────────────────────────────────
 
@@ -117,6 +134,36 @@ class CalibrationEngine:
 
         # ── 3. edge calculation ────────────────────────────────────
         edge = p_win * avg_r - (1.0 - p_win)
+
+        # ── 3a. live-data-first gate ─────────────────────────────
+        live_count = self._perf_db.get_live_trade_count(
+            strategy, regime, session_label,
+        )
+
+        if live_count < self._min_live_trades and self._bootstrap_fallback:
+            # Insufficient live data — use minimum size, do NOT reject
+            # on bootstrap edge.  This lets the system build real data.
+            logger.info(
+                "insufficient_live_data",
+                reason="using minimum size",
+                pair=pair,
+                strategy=strategy,
+                regime=regime,
+                session=session_label,
+                live_count=live_count,
+                min_required=self._min_live_trades,
+                bootstrap_edge=round(edge, 4),
+                bootstrap_p_win=round(p_win, 4),
+                suggested_size=self._BOOTSTRAP_MIN_SIZE,
+            )
+            return CalibratedTradeIntent(
+                p_win=p_win,
+                expected_R=avg_r,
+                edge=edge,
+                suggested_size=self._BOOTSTRAP_MIN_SIZE,
+                segment_count=trade_count,
+            )
+
         if edge <= 0:
             logger.warning(
                 "calibration_rejected",
@@ -125,6 +172,7 @@ class CalibrationEngine:
                 p_win=p_win,
                 avg_r=avg_r,
                 edge=edge,
+                live_count=live_count,
             )
             return None
 

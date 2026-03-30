@@ -6,6 +6,7 @@ Tests cover:
   - Correlation scalar (0, 1, 2+ same-currency positions)
   - None returns: no segment data, edge <= 0, dd >= 5%
   - Edge cases: boundary values, empty positions list
+  - Bootstrap fallback: insufficient live trades → minimum size
 """
 
 from __future__ import annotations
@@ -51,13 +52,23 @@ def _make_hypothesis(
 def _make_engine(
     segment_stats: dict | None = None,
     capital_allocation_pct: float = 1.0,
+    live_trade_count: int = 100,
+    min_live_trades_for_edge: int = 10,
+    bootstrap_mode_fallback: bool = True,
 ) -> CalibrationEngine:
-    """Build engine with a mocked PerformanceDatabase."""
+    """Build engine with a mocked PerformanceDatabase.
+
+    *live_trade_count* defaults to 100 (above threshold) so existing tests
+    that don't care about bootstrap fallback are unaffected.
+    """
     mock_db = MagicMock()
     mock_db.get_segment_stats.return_value = segment_stats
+    mock_db.get_live_trade_count.return_value = live_trade_count
     engine = CalibrationEngine(
         perf_db=mock_db,
         capital_allocation_pct=capital_allocation_pct,
+        min_live_trades_for_edge=min_live_trades_for_edge,
+        bootstrap_mode_fallback=bootstrap_mode_fallback,
     )
     return engine
 
@@ -496,3 +507,127 @@ class TestCapitalAllocation:
         result = engine.calibrate(_make_hypothesis(), "LONDON", current_dd=0.0)
         assert result is not None
         assert result.suggested_size == pytest.approx(0.02)
+
+
+# ── bootstrap fallback ───────────────────────────────────────────────────
+
+
+class TestBootstrapFallback:
+    """Live-data-first calibration with bootstrap fallback."""
+
+    def test_insufficient_live_trades_returns_minimum_size(self):
+        """< min_live_trades → minimum size regardless of edge."""
+        # Bootstrap data with negative edge: p=0.30, b=1.5 → edge = -0.25
+        engine = _make_engine(
+            _default_stats(win_rate=0.30, avg_r=1.5),
+            live_trade_count=3,
+            min_live_trades_for_edge=10,
+            bootstrap_mode_fallback=True,
+        )
+        result = engine.calibrate(_make_hypothesis(), "LONDON", current_dd=0.0)
+
+        assert result is not None
+        assert result.suggested_size == pytest.approx(0.001)
+        assert result.edge == pytest.approx(0.30 * 1.5 - 0.70)
+        assert result.edge < 0  # edge is negative but trade still allowed
+
+    def test_insufficient_live_trades_positive_edge_still_uses_minimum(self):
+        """Even with positive bootstrap edge, use minimum size when live data is low."""
+        engine = _make_engine(
+            _default_stats(win_rate=0.60, avg_r=2.0),
+            live_trade_count=5,
+            min_live_trades_for_edge=10,
+            bootstrap_mode_fallback=True,
+        )
+        result = engine.calibrate(_make_hypothesis(), "LONDON", current_dd=0.0)
+
+        assert result is not None
+        assert result.suggested_size == pytest.approx(0.001)
+
+    def test_sufficient_live_trades_uses_kelly(self):
+        """Once live trades >= threshold, normal Kelly sizing applies."""
+        engine = _make_engine(
+            _default_stats(win_rate=0.60, avg_r=2.0),
+            live_trade_count=15,
+            min_live_trades_for_edge=10,
+            bootstrap_mode_fallback=True,
+        )
+        result = engine.calibrate(_make_hypothesis(), "LONDON", current_dd=0.0)
+
+        assert result is not None
+        # f_final = 0.02 (normal Kelly)
+        assert result.suggested_size == pytest.approx(0.02)
+
+    def test_sufficient_live_trades_negative_edge_rejects(self):
+        """With enough live data, negative edge still rejects."""
+        engine = _make_engine(
+            _default_stats(win_rate=0.30, avg_r=1.5),
+            live_trade_count=15,
+            min_live_trades_for_edge=10,
+            bootstrap_mode_fallback=True,
+        )
+        result = engine.calibrate(_make_hypothesis(), "LONDON", current_dd=0.0)
+
+        assert result is None
+
+    def test_fallback_disabled_rejects_on_negative_edge(self):
+        """bootstrap_mode_fallback=False preserves old rejection behavior."""
+        engine = _make_engine(
+            _default_stats(win_rate=0.30, avg_r=1.5),
+            live_trade_count=3,
+            min_live_trades_for_edge=10,
+            bootstrap_mode_fallback=False,
+        )
+        result = engine.calibrate(_make_hypothesis(), "LONDON", current_dd=0.0)
+
+        assert result is None
+
+    def test_zero_live_trades_fallback(self):
+        """Zero live trades (pure bootstrap) → minimum size."""
+        engine = _make_engine(
+            _default_stats(win_rate=0.50, avg_r=1.0),  # edge = 0
+            live_trade_count=0,
+            min_live_trades_for_edge=10,
+            bootstrap_mode_fallback=True,
+        )
+        result = engine.calibrate(_make_hypothesis(), "LONDON", current_dd=0.0)
+
+        assert result is not None
+        assert result.suggested_size == pytest.approx(0.001)
+
+    def test_exactly_at_threshold_uses_kelly(self):
+        """live_count == min_live_trades → normal Kelly (not < threshold)."""
+        engine = _make_engine(
+            _default_stats(win_rate=0.60, avg_r=2.0),
+            live_trade_count=10,
+            min_live_trades_for_edge=10,
+            bootstrap_mode_fallback=True,
+        )
+        result = engine.calibrate(_make_hypothesis(), "LONDON", current_dd=0.0)
+
+        assert result is not None
+        assert result.suggested_size == pytest.approx(0.02)
+
+    def test_drawdown_gate_still_applies_in_fallback(self):
+        """Drawdown >= 5% rejects even during bootstrap fallback."""
+        engine = _make_engine(
+            _default_stats(),
+            live_trade_count=3,
+            bootstrap_mode_fallback=True,
+        )
+        result = engine.calibrate(_make_hypothesis(), "LONDON", current_dd=0.05)
+
+        assert result is None
+        # DD gate fires before live trade count check
+        engine._perf_db.get_live_trade_count.assert_not_called()
+
+    def test_no_segment_data_still_rejects(self):
+        """No segment data at all (not even bootstrap) → reject."""
+        engine = _make_engine(
+            segment_stats=None,
+            live_trade_count=0,
+            bootstrap_mode_fallback=True,
+        )
+        result = engine.calibrate(_make_hypothesis(), "LONDON", current_dd=0.0)
+
+        assert result is None

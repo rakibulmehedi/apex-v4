@@ -361,14 +361,14 @@ class TestCalibratedTradeIntent:
         ct = CalibratedTradeIntent(**_calibrated())
         assert ct.edge == 0.10
 
-    # ── edge > 0 ──
-    def test_edge_zero_rejected(self):
-        with pytest.raises(ValidationError, match="edge"):
-            CalibratedTradeIntent(**_calibrated(edge=0.0))
+    # ── edge accepts any float (bootstrap fallback may produce edge <= 0) ──
+    def test_edge_zero_accepted(self):
+        ct = CalibratedTradeIntent(**_calibrated(edge=0.0))
+        assert ct.edge == 0.0
 
-    def test_edge_negative_rejected(self):
-        with pytest.raises(ValidationError, match="edge"):
-            CalibratedTradeIntent(**_calibrated(edge=-0.05))
+    def test_edge_negative_accepted(self):
+        ct = CalibratedTradeIntent(**_calibrated(edge=-0.05))
+        assert ct.edge == pytest.approx(-0.05)
 
     # ── suggested_size 0.0-0.02 ──
     def test_size_above_2pct_rejected(self):

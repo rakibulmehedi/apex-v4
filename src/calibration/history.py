@@ -155,6 +155,47 @@ class PerformanceDatabase:
             logger.critical("get_7d_win_rate_failed", exc_info=True)
             return None
 
+    # ── live trade count ─────────────────────────────────────────────
+
+    def get_live_trade_count(
+        self,
+        strategy: str,
+        regime: str,
+        session: str,
+    ) -> int:
+        """Count trades with a fill_id (live trades, not bootstrap) in segment.
+
+        Bootstrap/V3 imports have ``fill_id=None``; live trades get a real
+        fill_id from the execution gateway.  This count determines whether
+        the system has enough real market data to trust edge calculations.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=_LOOKBACK_DAYS)
+
+        try:
+            with self._sf() as db:  # type: Session
+                count = (
+                    db.query(func.count(TradeOutcome.id))
+                    .filter(
+                        TradeOutcome.strategy == strategy,
+                        TradeOutcome.regime == regime,
+                        TradeOutcome.session == session,
+                        TradeOutcome.closed_at >= cutoff,
+                        TradeOutcome.fill_id.isnot(None),
+                    )
+                    .scalar()
+                )
+                return count or 0
+
+        except Exception:
+            logger.critical(
+                "get_live_trade_count_failed",
+                strategy=strategy,
+                regime=regime,
+                session=session,
+                exc_info=True,
+            )
+            return 0
+
     # ── insert ────────────────────────────────────────────────────────
 
     def update_segment(self, outcome: dict[str, Any]) -> None:

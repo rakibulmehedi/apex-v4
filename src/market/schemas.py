@@ -191,7 +191,9 @@ class CalibratedTradeIntent(BaseModel):
     """Calibration engine output — size and edge from historical segments.
 
     ``p_win`` comes from PostgreSQL trade history, never from AI.
-    ``edge`` must be > 0 or the trade is rejected upstream.
+    ``edge`` is typically > 0 for normal Kelly sizing.  During bootstrap
+    fallback (insufficient live trades), edge may be <= 0 — sizing is
+    overridden to the minimum position size in that case.
     ``suggested_size`` is capped at 0.02 (2 % hard cap, Section 7.1).
     """
 
@@ -199,7 +201,7 @@ class CalibratedTradeIntent(BaseModel):
 
     p_win: Annotated[float, Field(ge=0.0, le=1.0)]
     expected_R: float
-    edge: Annotated[float, Field(gt=0)]
+    edge: float
     suggested_size: Annotated[float, Field(ge=0.0, le=0.02)]
     segment_count: Annotated[int, Field(ge=0)]
 

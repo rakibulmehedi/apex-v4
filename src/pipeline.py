@@ -676,9 +676,12 @@ def init_context(
         min_conviction=alpha_cfg.get("conviction_threshold", 0.65),
     )
     perf_db = PerformanceDatabase(session_factory=session_factory)
+    cal_cfg = settings.get("calibration", {})
     cal_engine = CalibrationEngine(
         perf_db=perf_db,
         capital_allocation_pct=risk_cfg.get("capital_allocation_pct", 1.0),
+        min_live_trades_for_edge=cal_cfg.get("min_live_trades_for_edge", 10),
+        bootstrap_mode_fallback=cal_cfg.get("bootstrap_mode_fallback", True),
     )
     covariance = EWMACovarianceMatrix(
         pairs=pairs,

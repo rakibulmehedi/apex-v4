@@ -72,5 +72,9 @@ reconciler:
 zmq:
   address: "tcp://127.0.0.1:5559"
 
+calibration:
+  min_live_trades_for_edge: 10   # live trades needed before trusting edge calc
+  bootstrap_mode_fallback: true  # use minimum size when live data insufficient
+
 prometheus:
   port: 8000
