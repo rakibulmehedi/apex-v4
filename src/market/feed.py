@@ -232,12 +232,13 @@ class MarketFeed:
                 spread_points=spread_points,
                 session=session,
             )
-        except Exception:
+        except Exception as e:
             self.validation_errors += 1
             logger.error(
                 "snapshot validation failed — skipping",
                 pair=pair,
-                exc_info=True,
+                error_type=type(e).__name__,
+                error_msg=str(e),
             )
             return None
 
