@@ -55,3 +55,13 @@ For internal services like Prometheus and Grafana, always use
 
 **Rule:** Every port mapping in docker-compose.yml for internal services
 must explicitly bind to 127.0.0.1.
+
+### L7: Spread validation must be mode-aware (paper vs live)
+Exness Demo MT5 sometimes returns `spread = 0.0` for certain pairs.
+In paper mode this is normal (no live market data), but in live mode
+zero spread means missing tick data and should block trading.
+
+**Rule:** Any spread gate must check `trading_mode`. Paper mode allows
+zero spread through (regime classifier handles it safely). Live mode
+requires `spread > 0`. Never hardcode a single spread policy that
+applies to both modes.

@@ -654,9 +654,11 @@ def init_context(
     risk_cfg = settings.get("risk", {})
     alpha_cfg = settings.get("alpha", {})
 
+    trading_mode = settings.get("system", {}).get("mode", "paper")
     fabric = FeatureFabric(
         spread_max_points=settings.get("spread", {}).get("max_points", 0.00030),
         redis_client=redis_client,
+        trading_mode=trading_mode,
     )
     state = RedisStateManager(client=redis_client)
     pg_writer = PostgresWriter(session_factory=session_factory)

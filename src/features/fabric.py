@@ -36,15 +36,21 @@ class FeatureFabric:
         Any object that exposes ``.get(key)`` returning ``bytes | None``
         (e.g. ``redis.Redis``).  Used to read ``news_blackout_{pair}``.
         Pass ``None`` to disable news-blackout lookup (always False).
+    trading_mode : str
+        ``"paper"`` or ``"live"``.  In paper mode, zero spread is allowed
+        (Exness demo sometimes returns 0.0).  In live mode, zero spread
+        is treated as missing data and ``spread_ok`` is False.
     """
 
     def __init__(
         self,
         spread_max_points: float,
         redis_client: object | None = None,
+        trading_mode: str = "paper",
     ) -> None:
         self._spread_max = spread_max_points
         self._redis = redis_client
+        self._trading_mode = trading_mode
 
     def compute(self, snapshot: MarketSnapshot) -> FeatureVector:
         """Build a validated ``FeatureVector`` from *snapshot*.
@@ -83,9 +89,12 @@ class FeatureFabric:
         bb_lower = float(bb_lower_arr[-1])
 
         # ── spread gate ─────────────────────────────────────────────
-        # Zero spread means MT5 has no live tick data — treat as not-ok
-        # so the regime classifier maps to UNDEFINED and skips trading.
-        spread_ok = 0 < snapshot.spread_points < self._spread_max
+        # Paper mode: allow zero spread (Exness demo returns 0.0).
+        # Live mode: zero spread means no tick data → reject.
+        if self._trading_mode == "paper":
+            spread_ok = snapshot.spread_points < self._spread_max
+        else:
+            spread_ok = 0 < snapshot.spread_points < self._spread_max
 
         # ── news blackout from Redis ────────────────────────────────
         news_blackout = self._check_news_blackout(snapshot.pair)
