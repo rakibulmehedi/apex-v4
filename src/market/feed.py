@@ -214,6 +214,8 @@ class MarketFeed:
             return None
 
         spread_points = tick.ask - tick.bid
+        if spread_points == 0.0:
+            logger.debug("zero spread from tick data", pair=pair)
         now_ms = int(time.time() * 1000)
         tick_age_ms = now_ms - (tick.time * 1000)
         utc_hour = datetime.now(timezone.utc).hour

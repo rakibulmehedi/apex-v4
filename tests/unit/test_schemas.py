@@ -165,10 +165,10 @@ class TestMarketSnapshot:
         with pytest.raises(ValidationError, match="pair"):
             MarketSnapshot(**_snapshot(pair="EURUSDX"))
 
-    # ── spread_points > 0 ──
-    def test_spread_zero_rejected(self):
-        with pytest.raises(ValidationError, match="spread_points"):
-            MarketSnapshot(**_snapshot(spread_points=0))
+    # ── spread_points >= 0 ──
+    def test_spread_zero_accepted(self):
+        snap = MarketSnapshot(**_snapshot(spread_points=0))
+        assert snap.spread_points == 0.0
 
     def test_spread_negative_rejected(self):
         with pytest.raises(ValidationError, match="spread_points"):

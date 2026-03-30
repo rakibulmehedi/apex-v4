@@ -113,7 +113,7 @@ class MarketSnapshot(BaseModel):
     pair: Annotated[str, Field(min_length=6, max_length=6)]
     timestamp: Annotated[int, Field(gt=0, description="Unix ms UTC")]
     candles: CandleMap
-    spread_points: Annotated[float, Field(gt=0)]
+    spread_points: Annotated[float, Field(ge=0)]
     session: TradingSession
 
     @computed_field  # type: ignore[prop-decorator]

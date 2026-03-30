@@ -229,8 +229,8 @@ class TestBuildSnapshot:
         feed = MarketFeed(client, ["EURUSD"])
         assert feed._build_snapshot("EURUSD") is None
 
-    def test_zero_spread_validation_failure(self):
-        """A tick with bid==ask gives spread 0 → Pydantic rejects it."""
+    def test_zero_spread_produces_valid_snapshot(self):
+        """A tick with bid==ask gives spread 0 — snapshot still emitted."""
         client = _make_mock_client(
             tick=Tick(
                 time=int(time.time()),
@@ -243,8 +243,9 @@ class TestBuildSnapshot:
         )
         feed = MarketFeed(client, ["EURUSD"])
         snap = feed._build_snapshot("EURUSD")
-        assert snap is None
-        assert feed.validation_errors == 1
+        assert snap is not None
+        assert snap.spread_points == 0.0
+        assert feed.validation_errors == 0
 
     def test_session_field_is_set(self):
         client = _make_mock_client()
@@ -330,8 +331,8 @@ class TestPollOnce:
         assert feed.snapshots_published == 1
 
     @pytest.mark.asyncio
-    async def test_poll_once_skips_bad_data(self):
-        """If snapshot validation fails, poll_once continues without error."""
+    async def test_poll_once_publishes_zero_spread(self):
+        """Zero spread still produces a valid snapshot and publishes."""
         client = MagicMock()
         round_num = {"n": 0}
 
@@ -344,7 +345,7 @@ class TestPollOnce:
             return bars_v1[:count]
 
         client.copy_rates_from_pos.side_effect = copy_rates
-        # Zero spread → validation error.
+        # Zero spread — snapshot still emitted.
         client.symbol_info_tick.return_value = Tick(
             time=int(time.time()),
             bid=1.0,
@@ -360,10 +361,11 @@ class TestPollOnce:
 
         await feed._poll_once()  # seed
         round_num["n"] = 1
-        await feed._poll_once()  # trigger close, but validation fails
+        await feed._poll_once()  # trigger close, zero spread → still published
 
-        assert mock_socket.send_string.await_count == 0
-        assert feed.validation_errors == 1
+        assert mock_socket.send_string.await_count == 1
+        assert feed.snapshots_published == 1
+        assert feed.validation_errors == 0
 
     @pytest.mark.asyncio
     async def test_multiple_pairs(self):

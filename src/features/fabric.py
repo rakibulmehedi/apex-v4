@@ -83,7 +83,9 @@ class FeatureFabric:
         bb_lower = float(bb_lower_arr[-1])
 
         # ── spread gate ─────────────────────────────────────────────
-        spread_ok = snapshot.spread_points < self._spread_max
+        # Zero spread means MT5 has no live tick data — treat as not-ok
+        # so the regime classifier maps to UNDEFINED and skips trading.
+        spread_ok = 0 < snapshot.spread_points < self._spread_max
 
         # ── news blackout from Redis ────────────────────────────────
         news_blackout = self._check_news_blackout(snapshot.pair)
